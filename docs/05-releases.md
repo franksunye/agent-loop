@@ -11,7 +11,7 @@
 | 版本 | 代号 | 目标一句话 | 发布形态 | 对应战略阶段 |
 |------|------|------------|----------|--------------|
 | **v0.1** | scaffold | POC 闭环：防腐层 + trace + 混元/启发式 + 企微预览 + dev mongo | **tag `v0.1.0`** | Phase 1 前 |
-| **v0.2** | follow-up-wedge | **Follow-up 主战场**：206/204 停滞 + 管家路由 + Action Spec 草案 | 开发中 | Phase 1 前 |
+| **v0.2** | follow-up-wedge | **Follow-up 主战场**：仅 206 待签约停滞 + 管家路由 | 开发中 | Phase 1 前 |
 | **v0.3** | pilot-cron | GHA 定时 + Turso 云追踪 + 试点群（数据仍 dev→prod） | **首个可对外试点** | Phase 1 黑盒 |
 | **v0.4** | context-sop | 上下文补全 + SOP v1 + 可观测增强 | 试点迭代 | Phase 1 黑盒 |
 | **v0.5** | proof-metrics | 采纳/效果度量 + 周报自动化 | **业务证明包** | Phase 1 收官 |
@@ -73,7 +73,7 @@ flowchart LR
 
 ### 已知边界（v0.2 要解决）
 
-- 事件源仅 `status=403` 已完工，与业务主战场 **206 待签约 / 204 上门未成交** 不匹配。
+- 事件源仅 `status=403` 已完工，与业务主战场 **206 待签约** 不匹配。
 - 无管家维度路由（`exts.supervisorId`）。
 - 输出为扁平建议，尚无 **Action Spec + Approval** 契约。
 

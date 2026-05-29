@@ -220,7 +220,8 @@ _STATUS_FOR_EVENT: Dict[str, str] = {
     "403": EVENT_COMPLETED_CARE,
 }
 
-P0_FOLLOW_UP_STATUSES = ("206", "204")
+# 业务口径（v0.2）：仅 206 待签约由管家跟进；204 上门未成交不纳入
+P0_FOLLOW_UP_STATUSES = ("206",)
 P1_FOLLOW_UP_STATUSES = ("205", "403")
 
 
