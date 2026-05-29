@@ -1,0 +1,20 @@
+# 环境变量与密钥
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 本地追踪库（POC 默认用本地 sqlite）
+*.db
+*.sqlite
+*.sqlite3
+
+# 运行产物
+logs/
+*.log
+.DS_Store

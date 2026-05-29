@@ -1,0 +1,8 @@
+python-dotenv>=1.0.1
+requests>=2.31.0
+pydantic>=2.6.0
+openai>=1.30.0
+# 按需启用（mock 模式不需要）：
+# pymongo>=4.6.0            # FSM_SOURCE=mongo（XLink 主路径）
+# libsql-client>=0.3.1      # TRACKING_SOURCE=cloud (Turso)
+# psycopg2-binary>=2.9.9    # FSM_SOURCE=postgres（备用）

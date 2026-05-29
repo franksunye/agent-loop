@@ -1,0 +1,53 @@
+name: Agentic Follow-up Cron Engine (DB Polling)
+
+on:
+  schedule:
+    # UTC 时间。每天 00:00-14:00（北京时间 08:00-22:00）每小时执行一次
+    - cron: '0 0-14 * * *'
+  workflow_dispatch:  # 支持在 GitHub 网页手动触发测试
+
+# 避免上一轮还没跑完就被下一轮重叠触发
+concurrency:
+  group: agent-cron
+  cancel-in-progress: false
+
+jobs:
+  poll-and-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pymongo            # FSM_SOURCE=mongo（XLink 主路径）
+          # pip install libsql-client    # TRACKING_SOURCE=cloud
+          # pip install psycopg2-binary  # FSM_SOURCE=postgres
+
+      - name: Execute Incremental Agent
+        env:
+          DRY_RUN: ${{ vars.DRY_RUN || 'false' }}
+          FSM_SOURCE: ${{ vars.FSM_SOURCE || 'mongo' }}
+          FSM_MONGO_URL: ${{ secrets.FSM_MONGO_URL }}
+          FSM_MONGO_DB: ${{ vars.FSM_MONGO_DB || 'xlink' }}
+          FSM_MONGO_COLLECTION: ${{ vars.FSM_MONGO_COLLECTION || 'serviceAppointment' }}
+          FSM_FINISHED_STATUS: ${{ vars.FSM_FINISHED_STATUS || '403' }}
+          FSM_TIME_FIELD: ${{ vars.FSM_TIME_FIELD || 'updateTime' }}
+          FSM_LOOKBACK_HOURS: ${{ vars.FSM_LOOKBACK_HOURS || '24' }}
+          TRACKING_SOURCE: ${{ vars.TRACKING_SOURCE || 'cloud' }}
+          TURSO_URL: ${{ secrets.TURSO_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-4o-mini' }}
+          WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+        run: |
+          python agent_cron_engine.py
