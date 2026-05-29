@@ -30,7 +30,6 @@ jobs:
           pip install -r requirements.txt
           pip install pymongo            # FSM_SOURCE=mongo（XLink 主路径）
           # pip install libsql-client    # TRACKING_SOURCE=cloud
-          # pip install psycopg2-binary  # FSM_SOURCE=postgres
 
       - name: Execute Incremental Agent
         env:
@@ -38,8 +37,6 @@ jobs:
           FSM_SOURCE: ${{ vars.FSM_SOURCE || 'mongo' }}
           FSM_MONGO_URL: ${{ secrets.FSM_MONGO_URL }}
           FSM_MONGO_DB: ${{ vars.FSM_MONGO_DB || 'xlink' }}
-          FSM_MONGO_COLLECTION: ${{ vars.FSM_MONGO_COLLECTION || 'serviceAppointment' }}
-          FSM_FINISHED_STATUS: ${{ vars.FSM_FINISHED_STATUS || '403' }}
           FSM_TIME_FIELD: ${{ vars.FSM_TIME_FIELD || 'updateTime' }}
           FSM_LOOKBACK_HOURS: ${{ vars.FSM_LOOKBACK_HOURS || '24' }}
           TRACKING_SOURCE: ${{ vars.TRACKING_SOURCE || 'cloud' }}

@@ -3,6 +3,9 @@
 用**最小成本**验证一个想法：在不改动现有 FSM 系统的前提下，让一个 AI Agent 定时
 轮询「新完工工单」，自动判断是否需要人工跟进，并把结构化建议推送到企业微信群。
 
+> 📚 **战略文档**（目标 / 路径 / 当下）见 [`docs/`](docs/README.md)。
+> 本 README 只讲 POC 怎么跑、怎么接。
+
 ## 核心理念
 
 - **零系统侵入**：只需向 FSM 库申请一个**只读账号**，现有系统无需改代码、无需发版。
@@ -18,7 +21,9 @@ GitHub Actions Cron  →  增量捞取(FSM 只读)  →  LLM 生成 Action Spec
 企业微信群机器人  ←  推送 Markdown 卡片  ←  写入追踪库(幂等水位线)
 ```
 
-全部逻辑收拢在一个文件 `agent_cron_engine.py` + 一个 `.github/workflows/agent_cron.yml`。
+编排逻辑在 `agent_cron_engine.py`（只说领域语言）；所有 XLink 系统知识
+（`serviceAppointment` / `status=403` / 区划码…）收拢在 `domain.py`（领域防腐层）。
+见 [`docs/04-domain-semantics.md`](docs/04-domain-semantics.md)。
 
 ## 90 秒跑通（零依赖、零密钥）
 
@@ -56,7 +61,8 @@ DRY_RUN=true python agent_cron_engine.py
 详见 [`docs/xlink-data.md`](docs/xlink-data.md)。
 
 > 工单状态码并非只有 403，常见还有 104待联系 / 105待预约 / 203待下单 / 206待签约 /
-> 204上门未成交 等。若要跟进其它阶段，改 `FSM_FINISHED_STATUS` 即可。
+> 204上门未成交 等。这些系统码与「已完工」口径都固化在 `domain.py`（防腐层）；
+> 若要跟进其它阶段，改 `domain.py` 的 `COMPLETED_STATUS` 与码表即可，引擎其余部分不动。
 
 ## GitHub Actions 部署
 
@@ -72,10 +78,14 @@ DRY_RUN=true python agent_cron_engine.py
 
 ```
 agent-loop/
-├── agent_cron_engine.py          # 单文件引擎：捞取 → 推理 → 追踪 → 推送
+├── agent_cron_engine.py          # 编排：捞取 → 推理 → 追踪 → 推送（只说领域语言）
+├── domain.py                     # 领域防腐层：WorkOrder 模型 + XLink 系统码翻译（唯一耦合点）
 ├── requirements.txt
 ├── .env.example
-├── docs/xlink-data.md            # XLink 工单数据口径（连接 + 字段，已验证）
+├── docs/                         # 战略 + 设计 + 数据口径
+│   ├── README.md  01-vision  02-architecture  03-roadmap
+│   ├── 04-domain-semantics.md    # 领域语义对齐（Agent 的语义层）
+│   └── xlink-data.md             # XLink 工单数据口径（连接 + 字段，已验证）
 ├── .github/workflows/agent_cron.yml
 └── README.md
 ```
