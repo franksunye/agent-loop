@@ -37,7 +37,9 @@ Agent-native 底层架构。
 | [06-llm-providers.md](06-llm-providers.md) | **用什么模型**：混元 Lite 日常 + DeepSeek 抽样验证 |
 | [07-dev-e2e-consensus.md](07-dev-e2e-consensus.md) | **开发 E2E 约定**：默认不真发企微，真发需显式说明 |
 | [08-follow-up-wedge-spec.md](08-follow-up-wedge-spec.md) | **v0.2 SSOT**：Follow-up wedge / 试点管家 |
+| [09-business-decisions.md](09-business-decisions.md) | **业务 ADR**：206 only、14 天窗、知识分层 |
 | [xlink-data.md](xlink-data.md) | XLink 工单数据口径（连接 / 字段 / 已验证查询） |
+| [sops/](../sops/README.md) | **L2 SOP**（v0.4 启用，当前为大纲） |
 
 ## 状态
 

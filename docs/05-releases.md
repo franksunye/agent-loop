@@ -90,7 +90,7 @@ flowchart LR
 
 | 原语 | 本版 |
 |------|------|
-| Event Ingestion | P0：`206`/`204` **停滞 SLA** + P1：`205`/`403`；归属 `exts.supervisorId` |
+| Event Ingestion | P0：**仅 `206` 待签约** 停滞 SLA；204 不纳入；归属 `exts.supervisorId` |
 | Reasoning | 混元默认；prompt 含 **状态 + 停留天数**；仍只读 Mongo |
 | Action Spec | 扩展 `FollowUpSuggestion` → 含 `event_type`、`stale_days`、`housekeeper_id` |
 | Execution | 企微卡片按管家分送（试点）；仍为 **approval 前 suggestion** |
@@ -98,13 +98,13 @@ flowchart LR
 
 ### v0.2 验收清单（打勾即 tag `v0.2.0`）
 
-- [x] dev 只读：能捞到 **206/204 停滞** 工单（dev 库约 565 条，batch 控量）
+- [x] dev 只读：能捞到 **206 停滞** 工单（batch 控量；204 已排除）
 - [x] 管家路由：卡片带归属管家姓名 / 状态 / 停留天数 / 事件类型
 - [x] `dedupe_key` = `event_type:work_order_id` 幂等
 - [x] `reasoning_traces.event_type` 落库
 - [x] `LLM_PROVIDER=hunyuan`：真实推理 + trace
 - [x] `DRY_RUN=true` 开发 E2E 全通；`--reset-tracking` 可重复验
-- [x] 文档：08 规格 + 四位管家试点数据摘要
+- [x] 文档：08 规格 + 09 业务 ADR + SOP 大纲（sops/）
 - [x] 试点过滤：`FSM_PILOT_HOUSEKEEPERS` / `FSM_PILOT_HOUSEKEEPER_IDS`；可选 `WECOM_WEBHOOK_MAP`
 - [ ] （可选）2 管家试点群真发，记录采纳样本
 
