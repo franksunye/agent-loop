@@ -233,16 +233,26 @@ def follow_up_events_query(
     *,
     event_statuses: List[str],
     stale_days: int = 0,
+    max_age_days: int = 0,
     lookback_hours: int = 0,
     processed_ids: Optional[List[str]] = None,
     supervisor_ids: Optional[List[str]] = None,
     time_field: str = "updateTime",
 ) -> Dict[str, Any]:
-    """follow-up 事件 Mongo 条件：停滞（stale_days）或增量（lookback_hours）。"""
+    """follow-up 事件 Mongo 条件。
+
+    - max_age_days：仅最近 N 天内有更新（超过则不再跟进，v0.2 默认 14）
+    - stale_days：至少停滞 N 天（可选，默认 0）
+    - lookback_hours：v0.1 完工增量窗口（与 max_age 互斥时优先 max_age/stale）
+    """
     q: Dict[str, Any] = {"status": {"$in": list(event_statuses)}, "state": STATE_ACTIVE}
+    time_q: Dict[str, Any] = {}
+    if max_age_days and max_age_days > 0:
+        time_q["$gte"] = bj_now() - timedelta(days=max_age_days)
     if stale_days and stale_days > 0:
-        since = bj_now() - timedelta(days=stale_days)
-        q[time_field] = {"$lt": since}
+        time_q["$lt"] = bj_now() - timedelta(days=stale_days)
+    if time_q:
+        q[time_field] = time_q
     elif lookback_hours and lookback_hours > 0:
         since = bj_now() - timedelta(hours=lookback_hours)
         q[time_field] = {"$gte": since}

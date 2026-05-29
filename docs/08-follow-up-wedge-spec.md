@@ -23,14 +23,15 @@ Event → Reasoning → Suggestion(Action Spec) → Approval → Action（逐步
 
 | 优先级 | event_type | 触发 | 业务意图 |
 |--------|------------|------|----------|
-| **P0** | `STALE_SIGN_PENDING` | `status=206` 且停留 ≥ N 天 | 待签约推进 |
+| **P0** | `STALE_SIGN_PENDING` | `status=206` 且 **最近 14 天内有更新** | 待签约推进 |
 | — | ~~`STALE_VISIT_NO_DEAL`~~ | ~~`status=204`~~ | **v0.2 排除** |
 | P1 | `PAYMENT_PENDING` | `status=205` 且停留 ≥ N 天 | 催首付（后续） |
 | P1 | `COMPLETED_CARE` | `status=403` 完工后 T+N | 满意度/复购（v0.1） |
 
 **归属**：`serviceAppointment.exts.supervisorId` = 管家 `user._id`  
 **去重**：追踪库键 `(event_type, work_order_id)`  
-**默认 N**：`FSM_STALE_DAYS=7`（可 env 覆盖）
+**时间窗**：`updateTime` 在最近 **14 天**内（`FSM_MAX_AGE_DAYS=14`）；超过 2 周不再跟进。  
+可选 `FSM_STALE_DAYS`：要求至少停滞 N 天（默认 0，不启用）。
 
 ## 3. Action Spec 输出（v0.2 最小扩展）
 
@@ -55,16 +56,16 @@ v1.1 再拆独立 `action_spec` / `approval` 表与 JSON Schema。
 2. 停滞：`updateTime` → `stale_days`
 3. （v0.4）关联 `order` / `contract`、`workflowNode`
 
-## 5. 试点管家（生产只读，仅 206 停滞 7d+）
+## 5. 试点管家（生产只读，206 且 updateTime 在 14 天内）
 
-| 管家 | 报价合计 | 签约单 | **停滞 206**（引擎池） |
-|------|---------|--------|----------------------|
-| 刘沐泽 | 176 | 58 | **714** |
-| 刘清瑞 | 162 | 43 | **748** |
-| 李小军 | 197 | 53 | **672** |
-| 李俊达 | 152 | 51 | **363** |
+| 管家 | **14 天内 206**（引擎池） | 原「停滞 7d+」全量 206 |
+|------|-------------------------|----------------------|
+| 刘沐泽 | **13** | 714 |
+| 李小军 | **5** | 672 |
+| 刘清瑞 | **8** | 748 |
+| 李俊达 | **12** | 363 |
 
-（若含 204，池子会各多约 144～582 条，**已不再捞取**。）
+业务规则：**超过 2 周未更新的 206 不再跟进**（已无意义）。
 
 口径见 `xlink/docs/z.其它/业务字典-生产统计口径.md`；工单归属 `exts.supervisorId`。
 
@@ -81,7 +82,7 @@ v1.1 再拆独立 `action_spec` / `approval` 表与 JSON Schema。
 
 ```bash
 FSM_EVENT_STATUSES=206
-FSM_STALE_DAYS=7
+FSM_MAX_AGE_DAYS=14
 FSM_PILOT_HOUSEKEEPERS=刘沐泽,李小军,刘清瑞,李俊达
 # FSM_PILOT_HOUSEKEEPER_IDS=...
 # WECOM_WEBHOOK_MAP=userId:https://qyapi.weixin.qq.com/...

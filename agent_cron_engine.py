@@ -67,6 +67,8 @@ class Config:
     fsm_time_field: str = field(default_factory=lambda: os.getenv("FSM_TIME_FIELD", "updateTime"))
     lookback_hours: int = field(default_factory=lambda: int(os.getenv("FSM_LOOKBACK_HOURS", "24")))
     fsm_batch_limit: int = field(default_factory=lambda: int(os.getenv("FSM_BATCH_LIMIT", "50")))
+    # 仅跟进 updateTime 在最近 N 天内（默认 14）；超过认为无意义
+    fsm_max_age_days: int = field(default_factory=lambda: int(os.getenv("FSM_MAX_AGE_DAYS", "14")))
     fsm_stale_days: int = field(default_factory=lambda: int(os.getenv("FSM_STALE_DAYS", "0")))
     fsm_event_statuses: str = field(default_factory=lambda: os.getenv("FSM_EVENT_STATUSES", ""))
     # v0.2 试点：逗号分隔姓名（mongo 解析）或 userId；空=不过滤
@@ -136,7 +138,11 @@ class Config:
 #    返回领域对象 WorkOrder，系统码翻译全部在 domain.py 完成。
 # ======================================================================
 def _is_v02_ingestion(cfg: Config) -> bool:
-    return bool((cfg.fsm_event_statuses or "").strip()) or cfg.fsm_stale_days > 0
+    return (
+        bool((cfg.fsm_event_statuses or "").strip())
+        or cfg.fsm_stale_days > 0
+        or cfg.fsm_max_age_days > 0
+    )
 
 
 def fetch_completed_work_orders(cfg: Config, processed_keys: set[str]) -> List[WorkOrder]:
@@ -236,7 +242,8 @@ def _fetch_from_mongo(cfg: Config, processed_keys: set[str]) -> List[WorkOrder]:
         )
     statuses = _resolve_event_statuses(cfg)
     stale_days = cfg.fsm_stale_days if cfg.fsm_stale_days > 0 else 0
-    lookback = cfg.lookback_hours if stale_days <= 0 else 0
+    max_age = cfg.fsm_max_age_days if cfg.fsm_max_age_days > 0 else 0
+    lookback = cfg.lookback_hours if (stale_days <= 0 and max_age <= 0) else 0
     mongo_exclude: List[str] = []
     if not _is_v02_ingestion(cfg):
         mongo_exclude = [k.split(":", 1)[1] for k in processed_keys if ":" in k]
@@ -252,6 +259,7 @@ def _fetch_from_mongo(cfg: Config, processed_keys: set[str]) -> List[WorkOrder]:
         query = domain.follow_up_events_query(
             event_statuses=statuses,
             stale_days=stale_days,
+            max_age_days=max_age,
             lookback_hours=lookback,
             processed_ids=mongo_exclude,
             supervisor_ids=supervisor_ids,
@@ -674,9 +682,9 @@ def run(cfg: Optional[Config] = None) -> int:
     pilot_label = (cfg.pilot_housekeepers or cfg.pilot_housekeeper_ids or "全部").strip()
     logger.info(
         "启动 agent-loop | dry_run=%s fsm=%s tracking=%s llm=%s/%s | "
-        "events=%s stale_days=%d | pilot=%s",
+        "events=%s max_age_days=%d stale_days=%d | pilot=%s",
         cfg.dry_run, cfg.fsm_source, cfg.tracking_source, prov, model,
-        ",".join(statuses), cfg.fsm_stale_days, pilot_label,
+        ",".join(statuses), cfg.fsm_max_age_days, cfg.fsm_stale_days, pilot_label,
     )
 
     store = TrackingStore(cfg)
