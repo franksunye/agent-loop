@@ -67,6 +67,8 @@ db.serviceAppointment.find({
 - `status="403"` 共 350：`state=1` 有 345，`state=-1` 作废 5
 - `status="403"` 中 `describe` 非空仅约 20 条 → 备注稀疏，跟进文本以 `title`+`describe` 为主，
   空备注时引擎回退「轻量满意度回访」
+- **最近一条 `status=403` 的 `updateTime` 约在 2026-03-26** → 默认 `FSM_LOOKBACK_HOURS=24`
+  在 dev 会捞到 **0 条**；本地 E2E 建议 `2160`（90 天）或 `FSM_LOOKBACK_HOURS=0`（仅开发）
 
 ## 待确认 / 后续增强
 

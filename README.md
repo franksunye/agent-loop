@@ -27,7 +27,15 @@ GitHub Actions Cron  →  增量捞取(FSM 只读)  →  LLM 生成 Action Spec
 
 ## 90 秒跑通（零依赖、零密钥）
 
-`DRY_RUN` + 内置 mock 工单 + 本地 sqlite，仅用 Python 标准库即可跑完整链路：
+开发 E2E 默认 **`DRY_RUN=true`（企微只预览、不打扰群）**；真发需显式 `DRY_RUN=false`，见 [`docs/07-dev-e2e-consensus.md`](docs/07-dev-e2e-consensus.md)。
+
+离线结构验证仍可用 mock + heuristic：
+
+```bash
+FSM_SOURCE=mock LLM_PROVIDER=heuristic python agent_cron_engine.py
+```
+
+零依赖冒烟（历史路径）：
 
 ```bash
 DRY_RUN=true python agent_cron_engine.py

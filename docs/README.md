@@ -31,12 +31,15 @@ Agent-native 底层架构。
 |------|------|
 | [01-vision.md](01-vision.md) | **为什么**从「跟进行动引擎」撕口子（业务+战略论证） |
 | [02-architecture.md](02-architecture.md) | **是什么**：目标架构（三层运行时）与四大原语 |
-| [03-roadmap.md](03-roadmap.md) | **怎么走**：三阶段路线图 + 当下进展 |
-| [04-domain-semantics.md](04-domain-semantics.md) | **用什么语言思考**：领域语义对齐（Agent 的语义层）= 通用化/产品化的命门 |
+| [03-roadmap.md](03-roadmap.md) | **怎么走**：三阶段战略三阶段（黑盒→白盒→开源） |
+| [04-domain-semantics.md](04-domain-semantics.md) | **用什么语言思考**：领域语义对齐（Agent 的语义层） |
+| [05-releases.md](05-releases.md) | **发哪些版**：可发布小版本迭代 → Phase1/2 Live |
+| [06-llm-providers.md](06-llm-providers.md) | **用什么模型**：混元 Lite 日常 + DeepSeek 抽样验证 |
+| [07-dev-e2e-consensus.md](07-dev-e2e-consensus.md) | **开发 E2E 约定**：默认不真发企微，真发需显式说明 |
 | [xlink-data.md](xlink-data.md) | XLink 工单数据口径（连接 / 字段 / 已验证查询） |
 
 ## 状态
 
-- 版本：v0.1（草案，待市场对齐）
-- 阶段：Phase 1 黑盒验证 · POC 引擎已跑通
+- 版本：**v0.1.0**（POC 技术路径）
+- 阶段：Phase 1 黑盒验证
 - 最近更新：2026-05-29

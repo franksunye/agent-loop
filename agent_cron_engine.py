@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import os
@@ -55,12 +56,13 @@ def _env_bool(name: str, default: bool = False) -> bool:
 # ======================================================================
 @dataclass
 class Config:
-    dry_run: bool = field(default_factory=lambda: _env_bool("DRY_RUN", False))
+    # 开发环境 E2E 默认 true：企微仅预览、不打扰群；真发需显式 DRY_RUN=false
+    dry_run: bool = field(default_factory=lambda: _env_bool("DRY_RUN", True))
 
-    # 工单数据源
-    fsm_source: str = field(default_factory=lambda: os.getenv("FSM_SOURCE", "mock").lower())
+    # 工单数据源（v0.2 起默认 dev 真实库，mock 仅用于离线 CI）
+    fsm_source: str = field(default_factory=lambda: os.getenv("FSM_SOURCE", "mongo").lower())
     fsm_mongo_url: str = field(default_factory=lambda: os.getenv("FSM_MONGO_URL", ""))
-    fsm_mongo_db: str = field(default_factory=lambda: os.getenv("FSM_MONGO_DB", "xlink"))
+    fsm_mongo_db: str = field(default_factory=lambda: os.getenv("FSM_MONGO_DB", "xlinkdemo"))
     fsm_time_field: str = field(default_factory=lambda: os.getenv("FSM_TIME_FIELD", "updateTime"))
     lookback_hours: int = field(default_factory=lambda: int(os.getenv("FSM_LOOKBACK_HOURS", "24")))
     fsm_batch_limit: int = field(default_factory=lambda: int(os.getenv("FSM_BATCH_LIMIT", "50")))
@@ -75,13 +77,46 @@ class Config:
     turso_url: str = field(default_factory=lambda: os.getenv("TURSO_URL", ""))
     turso_token: str = field(default_factory=lambda: os.getenv("TURSO_TOKEN", ""))
 
-    # LLM（兼容 OpenAI 协议）
+    # 推理提供方：heuristic（不走 API）| hunyuan（默认免费）| deepseek（质量验证）
+    llm_provider: str = field(
+        default_factory=lambda: os.getenv("LLM_PROVIDER", "hunyuan").lower()
+    )
     llm_api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))
-    llm_base_url: str = field(default_factory=lambda: os.getenv("LLM_BASE_URL", "https://api.openai.com/v1"))
-    llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "gpt-4o-mini"))
+    llm_base_url: str = field(default_factory=lambda: os.getenv("LLM_BASE_URL", ""))
+    llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", ""))
+    hunyuan_api_key: str = field(default_factory=lambda: os.getenv("HUNYUAN_API_KEY", ""))
 
     # 输出
     wecom_webhook: str = field(default_factory=lambda: os.getenv("WECOM_WEBHOOK", ""))
+
+    def resolved_llm(self) -> tuple[str, str, str, str, bool]:
+        """返回 (provider_label, api_key, base_url, model, use_json_mode)。"""
+        p = self.llm_provider
+        if p == "heuristic":
+            return "heuristic", "", "", "", False
+        if p == "hunyuan":
+            key = self.hunyuan_api_key or self.llm_api_key
+            # 避免 .env 里残留的 deepseek-chat 等被误用
+            model = self.llm_model if "hunyuan" in (self.llm_model or "").lower() else "hunyuan-lite"
+            base = self.llm_base_url or ""
+            if base and "deepseek" in base.lower():
+                base = ""
+            return (
+                "hunyuan",
+                key,
+                base or "https://api.hunyuan.cloud.tencent.com/v1",
+                model,
+                False,  # 混元用 prompt 约束 JSON，见 stockwise hunyuan_chain
+            )
+        if p in ("deepseek", "openai", "custom"):
+            return (
+                p,
+                self.llm_api_key,
+                self.llm_base_url or "https://api.deepseek.com/v1",
+                self.llm_model or "deepseek-chat",
+                True,
+            )
+        raise ValueError(f"未知 LLM_PROVIDER: {p}")
 
 
 # ======================================================================
@@ -106,6 +141,10 @@ def _fetch_from_mongo(cfg: Config, processed_ids: List[str]) -> List[WorkOrder]:
     """XLink 主路径：从 serviceAppointment 拉原始行，经防腐层翻译为 WorkOrder。"""
     from pymongo import MongoClient  # 懒加载
 
+    if not cfg.fsm_mongo_url:
+        raise ValueError(
+            "FSM_SOURCE=mongo 需要配置 FSM_MONGO_URL（见 .env.example / docs/xlink-data.md）"
+        )
     client = MongoClient(cfg.fsm_mongo_url, serverSelectionTimeoutMS=8000)
     try:
         coll = client[cfg.fsm_mongo_db][domain.SA_COLLECTION]
@@ -182,11 +221,13 @@ class TrackingStore:
     def __init__(self, cfg: Config):
         self.cfg = cfg
         if cfg.tracking_source == "local":
-            self._conn = sqlite3.connect(cfg.tracking_local_path)
+            db_path = os.path.abspath(cfg.tracking_local_path)
+            self._conn = sqlite3.connect(db_path)
             self._conn.execute(_SCHEMA)
             self._conn.execute(_SCHEMA_TRACES)
             self._conn.commit()
             self._turso = None
+            logger.info("追踪库 sqlite: %s", db_path)
         elif cfg.tracking_source == "cloud":
             from libsql_client import create_client_sync  # 懒加载
 
@@ -237,6 +278,18 @@ class TrackingStore:
         else:
             self._turso.execute(sql, list(row))
 
+    def clear_all_data(self) -> int:
+        """清空水位线与 trace 表数据，保留 db 文件（E2E 可重复 + GUI 可刷新）。"""
+        if self._conn is None:
+            raise RuntimeError("clear_all_data 仅支持 TRACKING_SOURCE=local")
+        total = 0
+        for table in ("ai_follow_up_logs", "reasoning_traces"):
+            cur = self._conn.execute(f"DELETE FROM {table}")
+            total += cur.rowcount
+        self._conn.execute("DELETE FROM sqlite_sequence WHERE name='reasoning_traces'")
+        self._conn.commit()
+        return total
+
     def close(self) -> None:
         if self._conn is not None:
             self._conn.close()
@@ -258,17 +311,27 @@ JSON 字段：
 """
 
 
+def _parse_llm_json(content: str) -> FollowUpSuggestion:
+    text = (content or "").strip()
+    if not text.startswith("{"):
+        start, end = text.find("{"), text.rfind("}")
+        if start >= 0 and end > start:
+            text = text[start : end + 1]
+    return FollowUpSuggestion.from_dict(json.loads(text))
+
+
 def reason_follow_up(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
     """对一个完工工单生成跟进建议，并返回完整推理 trace。
 
     返回 (suggestion, trace)：
-    - dry-run / 无 key：走启发式，trace.mode=heuristic。
-    - 真实 LLM：trace 记录 prompt / 原始返回 / token / 耗时。
+    - LLM_PROVIDER=heuristic 或缺少 API key：走启发式。
+    - hunyuan / deepseek：trace 记录 prompt / 原始返回 / token / 耗时。
     - 调用报错：suggestion=None，trace.status=error（调用方据此重试，不误记水位线）。
     """
     now = bj_now().isoformat()
+    provider, api_key, base_url, model, json_mode = cfg.resolved_llm()
 
-    if cfg.dry_run or not cfg.llm_api_key:
+    if provider == "heuristic" or not api_key:
         s = _heuristic_suggestion(wo)
         trace = ReasoningTrace(
             work_order_id=wo.work_order_id, mode="heuristic", model="heuristic",
@@ -281,21 +344,23 @@ def reason_follow_up(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSugge
 
     user_prompt = f"工单号: {wo.order_num}\n{wo.followup_text}"
     trace = ReasoningTrace(
-        work_order_id=wo.work_order_id, mode="llm", model=cfg.llm_model,
+        work_order_id=wo.work_order_id, mode=f"llm_{provider}", model=model,
         prompt_system=_SYSTEM_PROMPT, prompt_user=user_prompt, created_at=now,
     )
-    client = OpenAI(api_key=cfg.llm_api_key, base_url=cfg.llm_base_url)
+    client = OpenAI(api_key=api_key, base_url=base_url)
     t0 = time.perf_counter()
     try:
-        resp = client.chat.completions.create(
-            model=cfg.llm_model,
-            messages=[
+        kwargs: Dict[str, Any] = {
+            "model": model,
+            "messages": [
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            response_format={"type": "json_object"},
-            temperature=0.2,
-        )
+            "temperature": 0.2,
+        }
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+        resp = client.chat.completions.create(**kwargs)
         trace.latency_ms = int((time.perf_counter() - t0) * 1000)
         content = resp.choices[0].message.content or "{}"
         trace.raw_response = content
@@ -305,7 +370,7 @@ def reason_follow_up(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSugge
             trace.completion_tokens = usage.completion_tokens or 0
             trace.total_tokens = usage.total_tokens or 0
         try:
-            s = FollowUpSuggestion.from_dict(json.loads(content))
+            s = _parse_llm_json(content)
         except json.JSONDecodeError:
             logger.warning("LLM 返回非法 JSON，回退启发式：%s", content[:200])
             s = _heuristic_suggestion(wo)
@@ -361,7 +426,7 @@ def build_card_markdown(wo: WorkOrder, s: FollowUpSuggestion) -> str:
 
 def send_wecom_card(cfg: Config, markdown: str) -> bool:
     if cfg.dry_run or not cfg.wecom_webhook:
-        logger.info("[DRY-RUN] 企微卡片预览：\n%s", markdown)
+        logger.info("[企微预览] 未发送（DRY_RUN 或缺少 webhook）：\n%s", markdown)
         return True
 
     import requests  # 懒加载
@@ -378,13 +443,36 @@ def send_wecom_card(cfg: Config, markdown: str) -> bool:
 
 
 # ======================================================================
+# E2E：重置追踪库（幂等去重与可重复验证）
+# ======================================================================
+def reset_tracking(cfg: Config) -> None:
+    """清空本地 sqlite 表数据（不删文件），便于 E2E 反复跑且 GUI 工具可刷新。
+
+    仅允许 TRACKING_SOURCE=local，避免误清 Turso 上的共享数据。
+    """
+    if cfg.tracking_source != "local":
+        raise SystemExit(
+            "reset-tracking 仅支持 TRACKING_SOURCE=local。"
+            "云库请手动运维或换 TRACKING_LOCAL_PATH 指向临时文件。"
+        )
+    path = os.path.abspath(cfg.tracking_local_path)
+    store = TrackingStore(cfg)
+    try:
+        n = store.clear_all_data()
+    finally:
+        store.close()
+    logger.info("已清空追踪表数据（%d 行，可重复 E2E）: %s", n, path)
+
+
+# ======================================================================
 # 主循环
 # ======================================================================
-def run() -> int:
-    cfg = Config()
+def run(cfg: Optional[Config] = None) -> int:
+    cfg = cfg or Config()
+    prov, _, _, model, _ = cfg.resolved_llm()
     logger.info(
-        "启动 agent-loop | dry_run=%s fsm=%s tracking=%s",
-        cfg.dry_run, cfg.fsm_source, cfg.tracking_source,
+        "启动 agent-loop | dry_run=%s fsm=%s tracking=%s llm=%s/%s",
+        cfg.dry_run, cfg.fsm_source, cfg.tracking_source, prov, model,
     )
 
     store = TrackingStore(cfg)
@@ -436,5 +524,19 @@ def run() -> int:
         store.close()
 
 
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Agent-Loop 跟进行动引擎")
+    parser.add_argument(
+        "--reset-tracking",
+        action="store_true",
+        help="运行前清空本地 sqlite 表数据（保留 db 文件，E2E 重复验证用）",
+    )
+    args = parser.parse_args()
+    cfg = Config()
+    if args.reset_tracking or _env_bool("TRACKING_RESET"):
+        reset_tracking(cfg)
+    return run(cfg)
+
+
 if __name__ == "__main__":
-    sys.exit(run())
+    sys.exit(main())
