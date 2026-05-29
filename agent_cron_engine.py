@@ -23,8 +23,9 @@ import logging
 import os
 import sqlite3
 import sys
+import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import domain
 from domain import FollowUpSuggestion, WorkOrder, bj_now
@@ -120,7 +121,7 @@ def _fetch_from_mongo(cfg: Config, processed_ids: List[str]) -> List[WorkOrder]:
 
 
 # ======================================================================
-# 2. 追踪库（幂等水位线）— 字段说领域语言
+# 2. 追踪库（幂等水位线 + 可检测性 trace）
 # ======================================================================
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS ai_follow_up_logs (
@@ -133,6 +134,47 @@ CREATE TABLE IF NOT EXISTS ai_follow_up_logs (
 )
 """
 
+# 推理 trace 表：每次 LLM/启发式推理落一条，增强可检测性（observability）
+_SCHEMA_TRACES = """
+CREATE TABLE IF NOT EXISTS reasoning_traces (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    work_order_id     TEXT,
+    mode              TEXT,
+    model             TEXT,
+    prompt_system     TEXT,
+    prompt_user       TEXT,
+    raw_response      TEXT,
+    parsed            TEXT,
+    prompt_tokens     INTEGER,
+    completion_tokens INTEGER,
+    total_tokens      INTEGER,
+    latency_ms        INTEGER,
+    status            TEXT,
+    error             TEXT,
+    created_at        TEXT
+)
+"""
+
+
+@dataclass
+class ReasoningTrace:
+    """一次推理的完整可追溯记录（LLM 或启发式或报错）。"""
+
+    work_order_id: str
+    mode: str                      # llm | heuristic | llm_fallback_heuristic
+    model: str = ""
+    prompt_system: str = ""
+    prompt_user: str = ""
+    raw_response: str = ""
+    parsed: Optional[Dict[str, Any]] = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    latency_ms: int = 0
+    status: str = "ok"             # ok | error
+    error: str = ""
+    created_at: str = ""
+
 
 class TrackingStore:
     """统一追踪库接口：local=sqlite，cloud=Turso。"""
@@ -142,6 +184,7 @@ class TrackingStore:
         if cfg.tracking_source == "local":
             self._conn = sqlite3.connect(cfg.tracking_local_path)
             self._conn.execute(_SCHEMA)
+            self._conn.execute(_SCHEMA_TRACES)
             self._conn.commit()
             self._turso = None
         elif cfg.tracking_source == "cloud":
@@ -149,6 +192,7 @@ class TrackingStore:
 
             self._turso = create_client_sync(url=cfg.turso_url, auth_token=cfg.turso_token)
             self._turso.execute(_SCHEMA)
+            self._turso.execute(_SCHEMA_TRACES)
             self._conn = None
         else:
             raise ValueError(f"未知 TRACKING_SOURCE: {cfg.tracking_source}")
@@ -167,6 +211,25 @@ class TrackingStore:
         sql = (
             "INSERT OR REPLACE INTO ai_follow_up_logs "
             "(work_order_id, order_num, city, suggestion, status, processed_at) VALUES (?,?,?,?,?,?)"
+        )
+        if self._conn is not None:
+            self._conn.execute(sql, row)
+            self._conn.commit()
+        else:
+            self._turso.execute(sql, list(row))
+
+    def log_reasoning_trace(self, t: ReasoningTrace) -> None:
+        parsed = json.dumps(t.parsed, ensure_ascii=False) if t.parsed is not None else None
+        row = (
+            t.work_order_id, t.mode, t.model, t.prompt_system, t.prompt_user,
+            t.raw_response, parsed, t.prompt_tokens, t.completion_tokens,
+            t.total_tokens, t.latency_ms, t.status, t.error, t.created_at,
+        )
+        sql = (
+            "INSERT INTO reasoning_traces "
+            "(work_order_id, mode, model, prompt_system, prompt_user, raw_response, parsed, "
+            "prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
         )
         if self._conn is not None:
             self._conn.execute(sql, row)
@@ -195,30 +258,65 @@ JSON 字段：
 """
 
 
-def reason_follow_up(cfg: Config, wo: WorkOrder) -> FollowUpSuggestion:
-    """对一个完工工单生成跟进建议；dry-run 或无 key 时用启发式兜底。"""
+def reason_follow_up(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
+    """对一个完工工单生成跟进建议，并返回完整推理 trace。
+
+    返回 (suggestion, trace)：
+    - dry-run / 无 key：走启发式，trace.mode=heuristic。
+    - 真实 LLM：trace 记录 prompt / 原始返回 / token / 耗时。
+    - 调用报错：suggestion=None，trace.status=error（调用方据此重试，不误记水位线）。
+    """
+    now = bj_now().isoformat()
+
     if cfg.dry_run or not cfg.llm_api_key:
-        return _heuristic_suggestion(wo)
+        s = _heuristic_suggestion(wo)
+        trace = ReasoningTrace(
+            work_order_id=wo.work_order_id, mode="heuristic", model="heuristic",
+            prompt_user=wo.followup_text, raw_response=json.dumps(s.to_dict(), ensure_ascii=False),
+            parsed=s.to_dict(), status="ok", created_at=now,
+        )
+        return s, trace
 
     from openai import OpenAI  # 懒加载
 
-    client = OpenAI(api_key=cfg.llm_api_key, base_url=cfg.llm_base_url)
     user_prompt = f"工单号: {wo.order_num}\n{wo.followup_text}"
-    resp = client.chat.completions.create(
-        model=cfg.llm_model,
-        messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user", "content": user_prompt},
-        ],
-        response_format={"type": "json_object"},
-        temperature=0.2,
+    trace = ReasoningTrace(
+        work_order_id=wo.work_order_id, mode="llm", model=cfg.llm_model,
+        prompt_system=_SYSTEM_PROMPT, prompt_user=user_prompt, created_at=now,
     )
-    content = resp.choices[0].message.content or "{}"
+    client = OpenAI(api_key=cfg.llm_api_key, base_url=cfg.llm_base_url)
+    t0 = time.perf_counter()
     try:
-        return FollowUpSuggestion.from_dict(json.loads(content))
-    except json.JSONDecodeError:
-        logger.warning("LLM 返回非法 JSON，回退启发式：%s", content[:200])
-        return _heuristic_suggestion(wo)
+        resp = client.chat.completions.create(
+            model=cfg.llm_model,
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.2,
+        )
+        trace.latency_ms = int((time.perf_counter() - t0) * 1000)
+        content = resp.choices[0].message.content or "{}"
+        trace.raw_response = content
+        usage = getattr(resp, "usage", None)
+        if usage:
+            trace.prompt_tokens = usage.prompt_tokens or 0
+            trace.completion_tokens = usage.completion_tokens or 0
+            trace.total_tokens = usage.total_tokens or 0
+        try:
+            s = FollowUpSuggestion.from_dict(json.loads(content))
+        except json.JSONDecodeError:
+            logger.warning("LLM 返回非法 JSON，回退启发式：%s", content[:200])
+            s = _heuristic_suggestion(wo)
+            trace.mode = "llm_fallback_heuristic"
+        trace.parsed = s.to_dict()
+        return s, trace
+    except Exception as e:
+        trace.latency_ms = int((time.perf_counter() - t0) * 1000)
+        trace.status = "error"
+        trace.error = f"{type(e).__name__}: {e}"
+        return None, trace
 
 
 def _heuristic_suggestion(wo: WorkOrder) -> FollowUpSuggestion:
@@ -302,8 +400,18 @@ def run() -> int:
         for wo in work_orders:
             ref = wo.order_num or wo.work_order_id
             try:
-                suggestion = reason_follow_up(cfg, wo)
-                logger.info("工单 %s → %s", ref, json.dumps(suggestion.to_dict(), ensure_ascii=False))
+                suggestion, trace = reason_follow_up(cfg, wo)
+                store.log_reasoning_trace(trace)  # 每次推理都落 trace（含失败）
+
+                if suggestion is None:
+                    logger.warning("工单 %s 推理失败(%s)，下轮重试。", ref, trace.error)
+                    continue
+
+                logger.info(
+                    "工单 %s → %s | %s %dtok %dms",
+                    ref, json.dumps(suggestion.to_dict(), ensure_ascii=False),
+                    trace.mode, trace.total_tokens, trace.latency_ms,
+                )
 
                 if suggestion.needs_follow_up:
                     card = build_card_markdown(wo, suggestion)
