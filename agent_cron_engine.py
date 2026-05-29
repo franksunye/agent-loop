@@ -126,17 +126,20 @@ class Config:
 # 1. 事件摄取层（= 领域防腐层落点）
 #    返回领域对象 WorkOrder，系统码翻译全部在 domain.py 完成。
 # ======================================================================
-def fetch_completed_work_orders(cfg: Config, processed_ids: set[str]) -> List[WorkOrder]:
-    """捞取「新完工 + 未处理」工单，输出领域 WorkOrder 列表。"""
-    pid = list(processed_ids)
+def _is_v02_ingestion(cfg: Config) -> bool:
+    return bool((cfg.fsm_event_statuses or "").strip()) or cfg.fsm_stale_days > 0
+
+
+def fetch_completed_work_orders(cfg: Config, processed_keys: set[str]) -> List[WorkOrder]:
+    """捞取 follow-up 事件候选工单（v0.2：按 dedupe_key 去重）。"""
     if cfg.fsm_source == "mock":
-        work_orders = domain.mock_completed_work_orders(pid)
+        work_orders = domain.mock_completed_work_orders(list(processed_keys))
     elif cfg.fsm_source == "mongo":
-        work_orders = _fetch_from_mongo(cfg, pid)
+        work_orders = _fetch_from_mongo(cfg, processed_keys)
     else:
         raise ValueError(f"未知 FSM_SOURCE: {cfg.fsm_source}")
 
-    logger.info("捞取到 %d 个新完工工单（已处理 %d 个）", len(work_orders), len(processed_ids))
+    logger.info("捞取到 %d 条待跟进（已处理 %d 个 dedupe_key）", len(work_orders), len(processed_keys))
     return work_orders
 
 
@@ -147,7 +150,18 @@ def _resolve_event_statuses(cfg: Config) -> List[str]:
     return [domain.COMPLETED_STATUS]
 
 
-def _fetch_from_mongo(cfg: Config, processed_ids: List[str]) -> List[WorkOrder]:
+def _enrich_housekeeper_names(db, work_orders: List[WorkOrder]) -> None:
+    ids = list({wo.housekeeper_id for wo in work_orders if wo.housekeeper_id})
+    if not ids:
+        return
+    name_map: Dict[str, str] = {}
+    for doc in db["user"].find({"_id": {"$in": ids}}, {"_id": 1, "name": 1}):
+        name_map[str(doc["_id"])] = str(doc.get("name") or "")
+    for wo in work_orders:
+        wo.housekeeper_name = name_map.get(wo.housekeeper_id) or "未分配管家"
+
+
+def _fetch_from_mongo(cfg: Config, processed_keys: set[str]) -> List[WorkOrder]:
     """XLink 主路径：从 serviceAppointment 拉原始行，经防腐层翻译为 WorkOrder。"""
     from pymongo import MongoClient  # 懒加载
 
@@ -158,14 +172,18 @@ def _fetch_from_mongo(cfg: Config, processed_ids: List[str]) -> List[WorkOrder]:
     statuses = _resolve_event_statuses(cfg)
     stale_days = cfg.fsm_stale_days if cfg.fsm_stale_days > 0 else 0
     lookback = cfg.lookback_hours if stale_days <= 0 else 0
+    mongo_exclude: List[str] = []
+    if not _is_v02_ingestion(cfg):
+        mongo_exclude = [k.split(":", 1)[1] for k in processed_keys if ":" in k]
     client = MongoClient(cfg.fsm_mongo_url, serverSelectionTimeoutMS=8000)
     try:
-        coll = client[cfg.fsm_mongo_db][domain.SA_COLLECTION]
+        db = client[cfg.fsm_mongo_db]
+        coll = db[domain.SA_COLLECTION]
         query = domain.follow_up_events_query(
             event_statuses=statuses,
             stale_days=stale_days,
             lookback_hours=lookback,
-            processed_ids=processed_ids,
+            processed_ids=mongo_exclude,
             time_field=cfg.fsm_time_field,
         )
         cursor = (
@@ -188,6 +206,9 @@ def _fetch_from_mongo(cfg: Config, processed_ids: List[str]) -> List[WorkOrder]:
                 wo.stale_days = max(0, (now - ut).days)
             except (TypeError, ValueError):
                 pass
+        _enrich_housekeeper_names(db, work_orders)
+        if _is_v02_ingestion(cfg):
+            work_orders = [wo for wo in work_orders if wo.dedupe_key not in processed_keys]
         return work_orders
     finally:
         client.close()
@@ -198,12 +219,15 @@ def _fetch_from_mongo(cfg: Config, processed_ids: List[str]) -> List[WorkOrder]:
 # ======================================================================
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS ai_follow_up_logs (
-    work_order_id  TEXT PRIMARY KEY,
-    order_num      TEXT,
-    city           TEXT,
-    suggestion     TEXT,
-    status         TEXT,
-    processed_at   TEXT
+    dedupe_key      TEXT PRIMARY KEY,
+    work_order_id   TEXT,
+    event_type      TEXT,
+    order_num       TEXT,
+    city            TEXT,
+    housekeeper_id  TEXT,
+    suggestion      TEXT,
+    status          TEXT,
+    processed_at    TEXT
 )
 """
 
@@ -212,6 +236,7 @@ _SCHEMA_TRACES = """
 CREATE TABLE IF NOT EXISTS reasoning_traces (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     work_order_id     TEXT,
+    event_type        TEXT,
     mode              TEXT,
     model             TEXT,
     prompt_system     TEXT,
@@ -235,6 +260,7 @@ class ReasoningTrace:
 
     work_order_id: str
     mode: str                      # llm | heuristic | llm_fallback_heuristic
+    event_type: str = ""
     model: str = ""
     prompt_system: str = ""
     prompt_user: str = ""
@@ -252,12 +278,45 @@ class ReasoningTrace:
 class TrackingStore:
     """统一追踪库接口：local=sqlite，cloud=Turso。"""
 
+    @staticmethod
+    def _migrate_sqlite_v02(conn: sqlite3.Connection) -> None:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(ai_follow_up_logs)")}
+        if not cols:
+            return
+        if "dedupe_key" in cols:
+            return
+        conn.execute(
+            """
+            CREATE TABLE ai_follow_up_logs_v2 (
+                dedupe_key TEXT PRIMARY KEY,
+                work_order_id TEXT, event_type TEXT, order_num TEXT, city TEXT,
+                housekeeper_id TEXT, suggestion TEXT, status TEXT, processed_at TEXT
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO ai_follow_up_logs_v2
+            SELECT
+                'COMPLETED_CARE:' || work_order_id,
+                work_order_id, 'COMPLETED_CARE', order_num, city,
+                '', suggestion, status, processed_at
+            FROM ai_follow_up_logs
+            """
+        )
+        conn.execute("DROP TABLE ai_follow_up_logs")
+        conn.execute("ALTER TABLE ai_follow_up_logs_v2 RENAME TO ai_follow_up_logs")
+        trace_cols = {r[1] for r in conn.execute("PRAGMA table_info(reasoning_traces)")}
+        if "event_type" not in trace_cols:
+            conn.execute("ALTER TABLE reasoning_traces ADD COLUMN event_type TEXT")
+
     def __init__(self, cfg: Config):
         self.cfg = cfg
         if cfg.tracking_source == "local":
             db_path = os.path.abspath(cfg.tracking_local_path)
             self._conn = sqlite3.connect(db_path)
             self._conn.execute(_SCHEMA)
+            self._migrate_sqlite_v02(self._conn)
             self._conn.execute(_SCHEMA_TRACES)
             self._conn.commit()
             self._turso = None
@@ -272,20 +331,24 @@ class TrackingStore:
         else:
             raise ValueError(f"未知 TRACKING_SOURCE: {cfg.tracking_source}")
 
-    def get_processed_work_order_ids(self) -> List[str]:
+    def get_processed_dedupe_keys(self) -> set[str]:
         if self._conn is not None:
-            rows = self._conn.execute("SELECT work_order_id FROM ai_follow_up_logs").fetchall()
-            return [r[0] for r in rows]
-        res = self._turso.execute("SELECT work_order_id FROM ai_follow_up_logs")
-        return [r[0] for r in res.rows]
+            rows = self._conn.execute("SELECT dedupe_key FROM ai_follow_up_logs").fetchall()
+            return {r[0] for r in rows}
+        res = self._turso.execute("SELECT dedupe_key FROM ai_follow_up_logs")
+        return {r[0] for r in res.rows}
 
     def mark_processed(self, wo: WorkOrder, suggestion: FollowUpSuggestion, status: str) -> None:
         now = bj_now().isoformat()
         payload = json.dumps(suggestion.to_dict(), ensure_ascii=False)
-        row = (wo.work_order_id, wo.order_num, wo.city, payload, status, now)
+        row = (
+            wo.dedupe_key, wo.work_order_id, wo.event_type, wo.order_num, wo.city,
+            wo.housekeeper_id, payload, status, now,
+        )
         sql = (
             "INSERT OR REPLACE INTO ai_follow_up_logs "
-            "(work_order_id, order_num, city, suggestion, status, processed_at) VALUES (?,?,?,?,?,?)"
+            "(dedupe_key, work_order_id, event_type, order_num, city, housekeeper_id, "
+            "suggestion, status, processed_at) VALUES (?,?,?,?,?,?,?,?,?)"
         )
         if self._conn is not None:
             self._conn.execute(sql, row)
@@ -296,15 +359,15 @@ class TrackingStore:
     def log_reasoning_trace(self, t: ReasoningTrace) -> None:
         parsed = json.dumps(t.parsed, ensure_ascii=False) if t.parsed is not None else None
         row = (
-            t.work_order_id, t.mode, t.model, t.prompt_system, t.prompt_user,
+            t.work_order_id, t.event_type, t.mode, t.model, t.prompt_system, t.prompt_user,
             t.raw_response, parsed, t.prompt_tokens, t.completion_tokens,
             t.total_tokens, t.latency_ms, t.status, t.error, t.created_at,
         )
         sql = (
             "INSERT INTO reasoning_traces "
-            "(work_order_id, mode, model, prompt_system, prompt_user, raw_response, parsed, "
+            "(work_order_id, event_type, mode, model, prompt_system, prompt_user, raw_response, parsed, "
             "prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
         )
         if self._conn is not None:
             self._conn.execute(sql, row)
@@ -334,13 +397,14 @@ class TrackingStore:
 # ======================================================================
 # 3. 推理层（LLM → 领域跟进建议 FollowUpSuggestion）
 # ======================================================================
-_SYSTEM_PROMPT = """你是家装售后服务的跟进助理。根据已完工工单的标题与备注，
-判断是否需要人工跟进，并给出结构化建议。只输出 JSON，不要多余文字。
+_SYSTEM_PROMPT = """你是家装售后服务的跟进行动助理（Follow-up Action Engine）。
+根据工单当前状态、停留时长、标题与备注，判断是否需要管家/销售人工推进，并给出可执行建议。
+只输出 JSON，不要多余文字。
 JSON 字段：
 - needs_follow_up: bool        是否需要跟进
 - priority: "high"|"medium"|"low"
-- reason: string               一句话原因
-- suggested_action: string     建议的具体动作
+- reason: string               一句话原因（含状态/停留天数）
+- suggested_action: string     建议的具体动作（电话、复检、催签约等）
 - customer_sentiment: "positive"|"neutral"|"negative"
 """
 
@@ -368,8 +432,9 @@ def reason_follow_up(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSugge
     if provider == "heuristic" or not api_key:
         s = _heuristic_suggestion(wo)
         trace = ReasoningTrace(
-            work_order_id=wo.work_order_id, mode="heuristic", model="heuristic",
-            prompt_user=wo.followup_text, raw_response=json.dumps(s.to_dict(), ensure_ascii=False),
+            work_order_id=wo.work_order_id, event_type=wo.event_type, mode="heuristic",
+            model="heuristic", prompt_user=wo.followup_text,
+            raw_response=json.dumps(s.to_dict(), ensure_ascii=False),
             parsed=s.to_dict(), status="ok", created_at=now,
         )
         return s, trace
@@ -378,8 +443,8 @@ def reason_follow_up(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSugge
 
     user_prompt = f"工单号: {wo.order_num}\n{wo.followup_text}"
     trace = ReasoningTrace(
-        work_order_id=wo.work_order_id, mode=f"llm_{provider}", model=model,
-        prompt_system=_SYSTEM_PROMPT, prompt_user=user_prompt, created_at=now,
+        work_order_id=wo.work_order_id, event_type=wo.event_type, mode=f"llm_{provider}",
+        model=model, prompt_system=_SYSTEM_PROMPT, prompt_user=user_prompt, created_at=now,
     )
     client = OpenAI(api_key=api_key, base_url=base_url)
     t0 = time.perf_counter()
@@ -419,17 +484,37 @@ def reason_follow_up(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSugge
 
 
 def _heuristic_suggestion(wo: WorkOrder) -> FollowUpSuggestion:
-    """无 LLM 时的确定性兜底：基于关键词的简单启发式。"""
+    """无 LLM 时的确定性兜底：结合事件类型与关键词。"""
     text = f"{wo.title} {wo.summary}"
     negative = any(k in text for k in ["不满", "担心", "投诉", "尽快", "复检", "问题", "偏低"])
     pending = any(k in text for k in ["下次", "补装", "后续", "复检", "建议"])
     no_text = not wo.summary.strip()
+    stale = wo.stale_days >= 7
+
+    if wo.event_type == domain.EVENT_STALE_SIGN_PENDING:
+        return FollowUpSuggestion(
+            needs_follow_up=True,
+            priority="high" if stale else "medium",
+            reason=f"待签约已停留 {wo.stale_days} 天",
+            suggested_action="电话推进签约或确认客户顾虑",
+            customer_sentiment="neutral",
+        )
+    if wo.event_type == domain.EVENT_STALE_VISIT_NO_DEAL:
+        return FollowUpSuggestion(
+            needs_follow_up=True,
+            priority="high" if stale else "medium",
+            reason=f"上门未成交已停留 {wo.stale_days} 天",
+            suggested_action="回访了解顾虑，预约二次上门或调整方案",
+            customer_sentiment="negative" if negative else "neutral",
+        )
+
+    needs = negative or pending or no_text or wo.is_completed
     return FollowUpSuggestion(
-        needs_follow_up=negative or pending or no_text,
-        priority="high" if negative else ("medium" if pending else "low"),
+        needs_follow_up=needs,
+        priority="high" if negative else ("medium" if pending or stale else "low"),
         reason=(
             "检测到客户顾虑或遗留事项" if (negative or pending)
-            else ("无备注，建议回访确认满意度" if no_text else "服务正常完成")
+            else (f"已完工，建议回访（停留 {wo.stale_days} 天）" if wo.is_completed else "建议主动跟进")
         ),
         suggested_action=(
             "电话回访并确认遗留事项处理时间" if (negative or pending)
@@ -447,9 +532,15 @@ _PRIORITY_EMOJI = {"high": "🔴", "medium": "🟡", "low": "🟢"}
 
 def build_card_markdown(wo: WorkOrder, s: FollowUpSuggestion) -> str:
     emoji = _PRIORITY_EMOJI.get(s.priority, "⚪")
+    hk = wo.housekeeper_name or "未分配管家"
+    stale_line = f"> **停留**：{wo.stale_days} 天\n" if wo.stale_days else ""
     return (
-        f"### {emoji} 工单跟进建议 · {wo.city}\n"
+        f"### {emoji} 跟进行动 · {wo.city}\n"
+        f"> **管家**：{hk}\n"
         f"> **工单号**：{wo.order_num or wo.work_order_id}\n"
+        f"> **状态**：{wo.task_type}\n"
+        f"{stale_line}"
+        f"> **事件**：{wo.event_type}\n"
         f"> **客户**：{wo.customer_name}（{wo.phone}）\n"
         f"> **优先级**：<font color=\"warning\">{s.priority}</font>\n"
         f"> **客户情绪**：{s.customer_sentiment}\n"
@@ -504,18 +595,21 @@ def reset_tracking(cfg: Config) -> None:
 def run(cfg: Optional[Config] = None) -> int:
     cfg = cfg or Config()
     prov, _, _, model, _ = cfg.resolved_llm()
+    statuses = _resolve_event_statuses(cfg)
     logger.info(
-        "启动 agent-loop | dry_run=%s fsm=%s tracking=%s llm=%s/%s",
+        "启动 agent-loop | dry_run=%s fsm=%s tracking=%s llm=%s/%s | "
+        "events=%s stale_days=%d",
         cfg.dry_run, cfg.fsm_source, cfg.tracking_source, prov, model,
+        ",".join(statuses), cfg.fsm_stale_days,
     )
 
     store = TrackingStore(cfg)
     try:
-        processed_ids = set(store.get_processed_work_order_ids())
-        work_orders = fetch_completed_work_orders(cfg, processed_ids)
+        processed_keys = store.get_processed_dedupe_keys()
+        work_orders = fetch_completed_work_orders(cfg, processed_keys)
 
         if not work_orders:
-            logger.info("本轮无新完工工单，结束。")
+            logger.info("本轮无待跟进事件，结束。")
             return 0
 
         success = 0
@@ -530,8 +624,8 @@ def run(cfg: Optional[Config] = None) -> int:
                     continue
 
                 logger.info(
-                    "工单 %s → %s | %s %dtok %dms",
-                    ref, json.dumps(suggestion.to_dict(), ensure_ascii=False),
+                    "工单 %s [%s] → %s | %s %dtok %dms",
+                    ref, wo.event_type, json.dumps(suggestion.to_dict(), ensure_ascii=False),
                     trace.mode, trace.total_tokens, trace.latency_ms,
                 )
 

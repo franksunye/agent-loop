@@ -97,6 +97,7 @@ class WorkOrder:
     event_type: str = ""         # v0.2：follow-up 事件类型
     stale_days: int = 0          # v0.2：在当前 status 停留天数
     housekeeper_id: str = ""     # v0.2：exts.supervisorId
+    housekeeper_name: str = ""   # v0.2：展示用，摄取后补全
     source_ref: Dict[str, str] = field(default_factory=dict)  # 溯源：{system, collection, id}
 
     @property
@@ -104,11 +105,27 @@ class WorkOrder:
         return self.task_type == "已完工"
 
     @property
+    def dedupe_key(self) -> str:
+        """幂等键：同一工单在不同 follow-up 事件下分别处理。"""
+        et = self.event_type or "UNKNOWN"
+        return f"{et}:{self.work_order_id}"
+
+    @property
     def followup_text(self) -> str:
-        parts = [f"工单标题：{self.title or '(无)'}"]
+        parts = [
+            f"工单号：{self.order_num or self.work_order_id}",
+            f"当前状态：{self.task_type}",
+        ]
+        if self.stale_days > 0:
+            parts.append(f"已停留：{self.stale_days} 天")
+        if self.event_type:
+            parts.append(f"跟进事件：{self.event_type}")
+        parts.append(f"工单标题：{self.title or '(无)'}")
         if self.summary:
             parts.append(f"备注：{self.summary}")
         parts.append(f"城市：{self.city}")
+        if self.housekeeper_name:
+            parts.append(f"归属管家：{self.housekeeper_name}")
         return "\n".join(parts)
 
 
@@ -265,10 +282,13 @@ MOCK_SA_RECORDS: List[Dict[str, Any]] = [
 ]
 
 
-def mock_completed_work_orders(processed_ids: List[str]) -> List[WorkOrder]:
-    processed = set(processed_ids)
-    return [
-        work_order_from_sa(d)
-        for d in MOCK_SA_RECORDS
-        if d.get("status") == COMPLETED_STATUS and str(d.get("_id")) not in processed
-    ]
+def mock_completed_work_orders(processed_keys: List[str]) -> List[WorkOrder]:
+    processed = set(processed_keys)
+    out: List[WorkOrder] = []
+    for d in MOCK_SA_RECORDS:
+        if d.get("status") != COMPLETED_STATUS:
+            continue
+        wo = work_order_from_sa(d)
+        if wo.dedupe_key not in processed:
+            out.append(wo)
+    return out

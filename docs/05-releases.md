@@ -98,11 +98,14 @@ flowchart LR
 
 ### v0.2 验收清单（打勾即 tag `v0.2.0`）
 
-- [ ] 生产/ dev 只读：能捞到 **206/204 停滞** 工单（`FSM_STALE_DAYS` 可配）
-- [ ] 管家路由：卡片带归属管家姓名/工单号
-- [ ] `LLM_PROVIDER=hunyuan`：真实推理 + trace
-- [ ] `DRY_RUN=true` 开发 E2E 全通；`--reset-tracking` 可重复验
-- [ ] 文档：08 规格 + 四位管家试点数据摘要入仓
+- [x] dev 只读：能捞到 **206/204 停滞** 工单（dev 库约 565 条，batch 控量）
+- [x] 管家路由：卡片带归属管家姓名 / 状态 / 停留天数 / 事件类型
+- [x] `dedupe_key` = `event_type:work_order_id` 幂等
+- [x] `reasoning_traces.event_type` 落库
+- [x] `LLM_PROVIDER=hunyuan`：真实推理 + trace
+- [x] `DRY_RUN=true` 开发 E2E 全通；`--reset-tracking` 可重复验
+- [x] 文档：08 规格 + 四位管家试点数据摘要
+- [ ] prod 试点：四位管家（刘沐泽等）过滤或分群
 - [ ] （可选）2 管家试点群真发，记录采纳样本
 
 ### 本地运行参考
