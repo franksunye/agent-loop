@@ -105,7 +105,7 @@ flowchart LR
 - [x] `LLM_PROVIDER=hunyuan`：真实推理 + trace
 - [x] `DRY_RUN=true` 开发 E2E 全通；`--reset-tracking` 可重复验
 - [x] 文档：08 规格 + 四位管家试点数据摘要
-- [ ] prod 试点：四位管家（刘沐泽等）过滤或分群
+- [x] 试点过滤：`FSM_PILOT_HOUSEKEEPERS` / `FSM_PILOT_HOUSEKEEPER_IDS`；可选 `WECOM_WEBHOOK_MAP`
 - [ ] （可选）2 管家试点群真发，记录采纳样本
 
 ### 本地运行参考

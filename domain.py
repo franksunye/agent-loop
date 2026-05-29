@@ -234,6 +234,7 @@ def follow_up_events_query(
     stale_days: int = 0,
     lookback_hours: int = 0,
     processed_ids: Optional[List[str]] = None,
+    supervisor_ids: Optional[List[str]] = None,
     time_field: str = "updateTime",
 ) -> Dict[str, Any]:
     """follow-up 事件 Mongo 条件：停滞（stale_days）或增量（lookback_hours）。"""
@@ -244,6 +245,8 @@ def follow_up_events_query(
     elif lookback_hours and lookback_hours > 0:
         since = bj_now() - timedelta(hours=lookback_hours)
         q[time_field] = {"$gte": since}
+    if supervisor_ids:
+        q["exts.supervisorId"] = {"$in": list(supervisor_ids)}
     if processed_ids:
         q["_id"] = {"$nin": list(processed_ids)}
     return q

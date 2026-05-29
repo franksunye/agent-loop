@@ -59,6 +59,30 @@ v1.1 再拆独立 `action_spec` / `approval` 表与 JSON Schema。
 
 口径见 `xlink/docs/z.其它/业务字典-生产统计口径.md`；工单归属 `exts.supervisorId`。
 
+### 生产 userId（`exts.supervisorId`）
+
+| 管家 | userId |
+|------|--------|
+| 刘沐泽 | `3439283044423912324` |
+| 李小军 | `7897213176257951252` |
+| 刘清瑞 | `2699508216270113110` |
+| 李俊达 | `8680761575588344623` |
+
+### 环境变量（试点过滤 / 分送）
+
+```bash
+# 按姓名解析（生产 xlink 库）
+FSM_PILOT_HOUSEKEEPERS=刘沐泽,李小军,刘清瑞,李俊达
+
+# 或直接写 userId（dev 库姓名可能对不上，建议用 ID）
+# FSM_PILOT_HOUSEKEEPER_IDS=3439283044423912324,7897213176257951252,...
+
+# 可选：按管家专属企微 webhook（userId=url，逗号分隔）
+# WECOM_WEBHOOK_MAP=3439283044423912324:https://qyapi.weixin.qq.com/...
+```
+
+未配置 `FSM_PILOT_*` 时不过滤管家（全量，需 `FSM_BATCH_LIMIT` 控量）。
+
 ## 6. 成功指标（v0.2 试点）
 
 | 指标 | 定义 |

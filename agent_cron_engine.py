@@ -69,6 +69,15 @@ class Config:
     fsm_batch_limit: int = field(default_factory=lambda: int(os.getenv("FSM_BATCH_LIMIT", "50")))
     fsm_stale_days: int = field(default_factory=lambda: int(os.getenv("FSM_STALE_DAYS", "0")))
     fsm_event_statuses: str = field(default_factory=lambda: os.getenv("FSM_EVENT_STATUSES", ""))
+    # v0.2 试点：逗号分隔姓名（mongo 解析）或 userId；空=不过滤
+    pilot_housekeepers: str = field(default_factory=lambda: os.getenv("FSM_PILOT_HOUSEKEEPERS", ""))
+    pilot_housekeeper_ids: str = field(
+        default_factory=lambda: os.getenv("FSM_PILOT_HOUSEKEEPER_IDS", "")
+    )
+    wecom_webhook_map: str = field(default_factory=lambda: os.getenv("WECOM_WEBHOOK_MAP", ""))
+    # 运行期解析结果（run 启动时填充）
+    resolved_pilot_ids: Optional[List[str]] = field(default=None, repr=False)
+    pilot_id_to_name: Dict[str, str] = field(default_factory=dict, repr=False)
 
     # 追踪库（幂等水位线）
     tracking_source: str = field(
@@ -150,6 +159,62 @@ def _resolve_event_statuses(cfg: Config) -> List[str]:
     return [domain.COMPLETED_STATUS]
 
 
+def _parse_csv(raw: str) -> List[str]:
+    return [x.strip() for x in (raw or "").split(",") if x.strip()]
+
+
+def _parse_webhook_map(raw: str) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for part in _parse_csv(raw):
+        if "=" not in part:
+            continue
+        k, v = part.split("=", 1)
+        k, v = k.strip(), v.strip()
+        if k and v:
+            out[k] = v
+    return out
+
+
+def resolve_pilot_housekeepers(cfg: Config, db) -> None:
+    """解析试点管家 userId；写入 cfg.resolved_pilot_ids / pilot_id_to_name。"""
+    ids = _parse_csv(cfg.pilot_housekeeper_ids)
+    names = _parse_csv(cfg.pilot_housekeepers)
+    id_to_name: Dict[str, str] = {}
+
+    for uid in ids:
+        row = db["user"].find_one({"_id": uid}, {"_id": 1, "name": 1})
+        id_to_name[uid] = str((row or {}).get("name") or uid)
+
+    for name in names:
+        row = db["user"].find_one({"name": name, "state": 1}, {"_id": 1, "name": 1})
+        if not row and "牧" in name:
+            row = db["user"].find_one(
+                {"name": name.replace("牧", "沐"), "state": 1}, {"_id": 1, "name": 1}
+            )
+        if not row:
+            logger.warning("试点管家未找到（将跳过）: %s", name)
+            continue
+        uid = str(row["_id"])
+        ids.append(uid)
+        id_to_name[uid] = str(row.get("name") or name)
+
+    cfg.resolved_pilot_ids = list(dict.fromkeys(ids)) if ids else None
+    cfg.pilot_id_to_name = id_to_name
+    if cfg.resolved_pilot_ids:
+        logger.info(
+            "试点管家过滤: %s",
+            ", ".join(f"{id_to_name.get(i, i)}({i})" for i in cfg.resolved_pilot_ids),
+        )
+    elif names or cfg.pilot_housekeeper_ids:
+        logger.warning("试点管家配置无效，本轮不捞取工单。")
+        cfg.resolved_pilot_ids = []
+
+
+def _webhook_for_housekeeper(cfg: Config, housekeeper_id: str) -> str:
+    m = _parse_webhook_map(cfg.wecom_webhook_map)
+    return m.get(housekeeper_id, "") or cfg.wecom_webhook
+
+
 def _enrich_housekeeper_names(db, work_orders: List[WorkOrder]) -> None:
     ids = list({wo.housekeeper_id for wo in work_orders if wo.housekeeper_id})
     if not ids:
@@ -178,12 +243,18 @@ def _fetch_from_mongo(cfg: Config, processed_keys: set[str]) -> List[WorkOrder]:
     client = MongoClient(cfg.fsm_mongo_url, serverSelectionTimeoutMS=8000)
     try:
         db = client[cfg.fsm_mongo_db]
+        if cfg.resolved_pilot_ids is None:
+            resolve_pilot_housekeepers(cfg, db)
+        if cfg.resolved_pilot_ids is not None and len(cfg.resolved_pilot_ids) == 0:
+            return []
+        supervisor_ids = cfg.resolved_pilot_ids
         coll = db[domain.SA_COLLECTION]
         query = domain.follow_up_events_query(
             event_statuses=statuses,
             stale_days=stale_days,
             lookback_hours=lookback,
             processed_ids=mongo_exclude,
+            supervisor_ids=supervisor_ids,
             time_field=cfg.fsm_time_field,
         )
         cursor = (
@@ -549,15 +620,19 @@ def build_card_markdown(wo: WorkOrder, s: FollowUpSuggestion) -> str:
     )
 
 
-def send_wecom_card(cfg: Config, markdown: str) -> bool:
-    if cfg.dry_run or not cfg.wecom_webhook:
-        logger.info("[企微预览] 未发送（DRY_RUN 或缺少 webhook）：\n%s", markdown)
+def send_wecom_card(cfg: Config, markdown: str, *, housekeeper_id: str = "") -> bool:
+    webhook = _webhook_for_housekeeper(cfg, housekeeper_id) if housekeeper_id else cfg.wecom_webhook
+    if cfg.dry_run or not webhook:
+        tag = ""
+        if housekeeper_id and cfg.wecom_webhook_map:
+            tag = f" [webhook→{housekeeper_id[:8]}…]" if webhook else " [无专属 webhook，未发]"
+        logger.info("[企微预览] 未发送（DRY_RUN 或缺少 webhook）%s：\n%s", tag, markdown)
         return True
 
     import requests  # 懒加载
 
     resp = requests.post(
-        cfg.wecom_webhook,
+        webhook,
         json={"msgtype": "markdown", "markdown": {"content": markdown}},
         timeout=15,
     )
@@ -596,11 +671,12 @@ def run(cfg: Optional[Config] = None) -> int:
     cfg = cfg or Config()
     prov, _, _, model, _ = cfg.resolved_llm()
     statuses = _resolve_event_statuses(cfg)
+    pilot_label = (cfg.pilot_housekeepers or cfg.pilot_housekeeper_ids or "全部").strip()
     logger.info(
         "启动 agent-loop | dry_run=%s fsm=%s tracking=%s llm=%s/%s | "
-        "events=%s stale_days=%d",
+        "events=%s stale_days=%d | pilot=%s",
         cfg.dry_run, cfg.fsm_source, cfg.tracking_source, prov, model,
-        ",".join(statuses), cfg.fsm_stale_days,
+        ",".join(statuses), cfg.fsm_stale_days, pilot_label,
     )
 
     store = TrackingStore(cfg)
@@ -631,7 +707,7 @@ def run(cfg: Optional[Config] = None) -> int:
 
                 if suggestion.needs_follow_up:
                     card = build_card_markdown(wo, suggestion)
-                    sent = send_wecom_card(cfg, card)
+                    sent = send_wecom_card(cfg, card, housekeeper_id=wo.housekeeper_id)
                     status = "sent" if sent else "send_failed"
                 else:
                     status = "skipped_no_follow_up"
