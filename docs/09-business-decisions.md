@@ -13,6 +13,7 @@
 | [ADR-004](#adr-004-四位管家试点) | 试点四位管家 + 可选分群 webhook | 已采纳 | 试点结束后 |
 | [ADR-005](#adr-005-人类审批再触达) | suggestion → approval，默认不自动触客 | 已采纳 | v1.0 前 |
 | [ADR-006](#adr-006-知识分层节奏) | L1 规则 now，L2 SOP 试点后，L3 案例有度量后 | 已采纳 | v0.4 前 |
+| [ADR-007](#adr-007-agent-展示轨) | 多步骤展示轨 `AGENT_MODE=steps`，默认仍 oneshot | 已采纳 | v0.2.x |
 
 ---
 
@@ -112,6 +113,22 @@
 **纪律**：L1 不进 prompt 让模型猜；L2 以 `sops/` 版本化拼入 system prompt（见 [sops/README.md](../sops/README.md)）。
 
 **复审**：v0.4 启动前评估试点样本是否够写 SOP v1。
+
+---
+
+## ADR-007: Agent 展示轨
+
+**背景**：早期 POC 需展示非 one-shot：多步骤 + 工具调用，且可审计。
+
+**决策**：
+
+- 主轨试点默认 **`AGENT_MODE=oneshot`**（不改变 KPI）。
+- 展示轨 **`AGENT_MODE=steps`**：固定剧本 `enrich（只读 tool）→ 1×LLM → 卡片`。
+- 步骤写入 `reasoning_traces.steps_json`；详见 [10-agent-steps-demo.md](10-agent-steps-demo.md)。
+
+**纪律**：工具仅只读；不做开放 ReAct；写操作留给 v1.1 approval 之后。
+
+**复审**：enrich 实现 + 盲评通过后，再考虑默认 steps。
 
 ---
 

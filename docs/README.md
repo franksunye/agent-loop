@@ -38,6 +38,7 @@ Agent-native 底层架构。
 | [07-dev-e2e-consensus.md](07-dev-e2e-consensus.md) | **开发 E2E 约定**：默认不真发企微，真发需显式说明 |
 | [08-follow-up-wedge-spec.md](08-follow-up-wedge-spec.md) | **v0.2 SSOT**：Follow-up wedge / 试点管家 |
 | [09-business-decisions.md](09-business-decisions.md) | **业务 ADR**：206 only、14 天窗、知识分层 |
+| [10-agent-steps-demo.md](10-agent-steps-demo.md) | **展示轨**：`AGENT_MODE=steps` + 只读 enrich |
 | [xlink-data.md](xlink-data.md) | XLink 工单数据口径（连接 / 字段 / 已验证查询） |
 | [sops/](../sops/README.md) | **L2 SOP**（v0.4 启用，当前为大纲） |
 

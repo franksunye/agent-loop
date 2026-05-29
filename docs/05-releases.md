@@ -106,7 +106,13 @@ flowchart LR
 - [x] `DRY_RUN=true` 开发 E2E 全通；`--reset-tracking` 可重复验
 - [x] 文档：08 规格 + 09 业务 ADR + SOP 大纲（sops/）
 - [x] 试点过滤：`FSM_PILOT_HOUSEKEEPERS` / `FSM_PILOT_HOUSEKEEPER_IDS`；可选 `WECOM_WEBHOOK_MAP`
+- [x] 展示轨骨架：`AGENT_MODE=steps` + `agent_tools.enrich` + `steps_json` trace
+- [ ] enrich 关联键与业务字典对齐 + Demo A/B 盲评
 - [ ] （可选）2 管家试点群真发，记录采纳样本
+
+### v0.2.x · agent-steps（展示轨，不打断试点）
+
+见 [10-agent-steps-demo.md](10-agent-steps-demo.md)。默认 `AGENT_MODE=oneshot`。
 
 ### 本地运行参考
 

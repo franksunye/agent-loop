@@ -100,6 +100,11 @@ class Config:
     llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", ""))
     hunyuan_api_key: str = field(default_factory=lambda: os.getenv("HUNYUAN_API_KEY", ""))
 
+    # 推理模式：oneshot（默认试点）| steps（展示轨：enrich + LLM，见 docs/10）
+    agent_mode: str = field(
+        default_factory=lambda: os.getenv("AGENT_MODE", "oneshot").lower()
+    )
+
     # 输出
     wecom_webhook: str = field(default_factory=lambda: os.getenv("WECOM_WEBHOOK", ""))
 
@@ -328,6 +333,7 @@ CREATE TABLE IF NOT EXISTS reasoning_traces (
     latency_ms        INTEGER,
     status            TEXT,
     error             TEXT,
+    steps_json        TEXT,
     created_at        TEXT
 )
 """
@@ -351,11 +357,23 @@ class ReasoningTrace:
     latency_ms: int = 0
     status: str = "ok"             # ok | error
     error: str = ""
+    steps_json: str = ""
     created_at: str = ""
 
 
 class TrackingStore:
     """统一追踪库接口：local=sqlite，cloud=Turso。"""
+
+    @staticmethod
+    def _migrate_trace_columns(conn: sqlite3.Connection) -> None:
+        trace_cols = {r[1] for r in conn.execute("PRAGMA table_info(reasoning_traces)")}
+        if not trace_cols:
+            return
+        if "event_type" not in trace_cols:
+            conn.execute("ALTER TABLE reasoning_traces ADD COLUMN event_type TEXT")
+        trace_cols = {r[1] for r in conn.execute("PRAGMA table_info(reasoning_traces)")}
+        if "steps_json" not in trace_cols:
+            conn.execute("ALTER TABLE reasoning_traces ADD COLUMN steps_json TEXT")
 
     @staticmethod
     def _migrate_sqlite_v02(conn: sqlite3.Connection) -> None:
@@ -385,9 +403,6 @@ class TrackingStore:
         )
         conn.execute("DROP TABLE ai_follow_up_logs")
         conn.execute("ALTER TABLE ai_follow_up_logs_v2 RENAME TO ai_follow_up_logs")
-        trace_cols = {r[1] for r in conn.execute("PRAGMA table_info(reasoning_traces)")}
-        if "event_type" not in trace_cols:
-            conn.execute("ALTER TABLE reasoning_traces ADD COLUMN event_type TEXT")
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -397,6 +412,7 @@ class TrackingStore:
             self._conn.execute(_SCHEMA)
             self._migrate_sqlite_v02(self._conn)
             self._conn.execute(_SCHEMA_TRACES)
+            self._migrate_trace_columns(self._conn)
             self._conn.commit()
             self._turso = None
             logger.info("追踪库 sqlite: %s", db_path)
@@ -440,13 +456,13 @@ class TrackingStore:
         row = (
             t.work_order_id, t.event_type, t.mode, t.model, t.prompt_system, t.prompt_user,
             t.raw_response, parsed, t.prompt_tokens, t.completion_tokens,
-            t.total_tokens, t.latency_ms, t.status, t.error, t.created_at,
+            t.total_tokens, t.latency_ms, t.status, t.error, t.steps_json or None, t.created_at,
         )
         sql = (
             "INSERT INTO reasoning_traces "
             "(work_order_id, event_type, mode, model, prompt_system, prompt_user, raw_response, parsed, "
-            "prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
+            "prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error, steps_json, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
         )
         if self._conn is not None:
             self._conn.execute(sql, row)
@@ -498,13 +514,67 @@ def _parse_llm_json(content: str) -> FollowUpSuggestion:
 
 
 def reason_follow_up(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
-    """对一个完工工单生成跟进建议，并返回完整推理 trace。
+    """对一个工单生成跟进建议，并返回完整推理 trace。"""
+    if cfg.agent_mode == "steps":
+        return _reason_follow_up_steps(cfg, wo)
+    return _reason_follow_up_oneshot(cfg, wo)
 
-    返回 (suggestion, trace)：
-    - LLM_PROVIDER=heuristic 或缺少 API key：走启发式。
-    - hunyuan / deepseek：trace 记录 prompt / 原始返回 / token / 耗时。
-    - 调用报错：suggestion=None，trace.status=error（调用方据此重试，不误记水位线）。
-    """
+
+def _reason_follow_up_steps(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
+    """展示轨：enrich（tool）→ LLM，步骤写入 trace.steps_json。"""
+    import time
+
+    from agent_tools import enrich_work_order_context
+
+    now = bj_now().isoformat()
+    steps: List[Dict[str, Any]] = []
+    t0 = time.perf_counter()
+    enrich_ctx = enrich_work_order_context(cfg, wo)
+    steps.append({
+        "step": 1,
+        "kind": "tool",
+        "name": "enrich_work_order_context",
+        "latency_ms": int((time.perf_counter() - t0) * 1000),
+        "status": "ok",
+        "output": enrich_ctx.to_step_dict(),
+    })
+    enrich_block = enrich_ctx.to_prompt_block()
+    user_prompt = f"工单号: {wo.order_num}\n{wo.followup_text}\n\n{enrich_block}"
+
+    provider, api_key, base_url, model, json_mode = cfg.resolved_llm()
+    if provider == "heuristic" or not api_key:
+        s = _heuristic_suggestion(wo)
+        if enrich_ctx.has_signed_contract:
+            s.needs_follow_up = False
+            s.reason = "系统查询显示已有签约合同，建议先核对工单状态是否未更新"
+        steps.append({"step": 2, "kind": "heuristic", "name": "suggest", "status": "ok"})
+        trace = ReasoningTrace(
+            work_order_id=wo.work_order_id, event_type=wo.event_type,
+            mode="steps_heuristic", model="heuristic",
+            prompt_user=user_prompt,
+            raw_response=json.dumps(s.to_dict(), ensure_ascii=False),
+            parsed=s.to_dict(), status="ok", created_at=now,
+            steps_json=json.dumps(steps, ensure_ascii=False),
+        )
+        return s, trace
+
+    suggestion, trace = _llm_follow_up(
+        cfg, wo, provider, api_key, base_url, model, json_mode, user_prompt, now,
+    )
+    trace.mode = f"steps_llm_{provider}"
+    steps.append({
+        "step": 2,
+        "kind": "llm",
+        "name": "suggest",
+        "latency_ms": trace.latency_ms,
+        "status": trace.status,
+    })
+    trace.steps_json = json.dumps(steps, ensure_ascii=False)
+    return suggestion, trace
+
+
+def _reason_follow_up_oneshot(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
+    """默认试点：单次 LLM / 启发式。"""
     now = bj_now().isoformat()
     provider, api_key, base_url, model, json_mode = cfg.resolved_llm()
 
@@ -518,9 +588,26 @@ def reason_follow_up(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSugge
         )
         return s, trace
 
-    from openai import OpenAI  # 懒加载
-
     user_prompt = f"工单号: {wo.order_num}\n{wo.followup_text}"
+    return _llm_follow_up(
+        cfg, wo, provider, api_key, base_url, model, json_mode, user_prompt, now,
+    )
+
+
+def _llm_follow_up(
+    cfg: Config,
+    wo: WorkOrder,
+    provider: str,
+    api_key: str,
+    base_url: str,
+    model: str,
+    json_mode: bool,
+    user_prompt: str,
+    now: str,
+) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
+    from openai import OpenAI
+    import time
+
     trace = ReasoningTrace(
         work_order_id=wo.work_order_id, event_type=wo.event_type, mode=f"llm_{provider}",
         model=model, prompt_system=_SYSTEM_PROMPT, prompt_user=user_prompt, created_at=now,
@@ -682,9 +769,10 @@ def run(cfg: Optional[Config] = None) -> int:
     pilot_label = (cfg.pilot_housekeepers or cfg.pilot_housekeeper_ids or "全部").strip()
     logger.info(
         "启动 agent-loop | dry_run=%s fsm=%s tracking=%s llm=%s/%s | "
-        "events=%s max_age_days=%d stale_days=%d | pilot=%s",
+        "events=%s max_age_days=%d stale_days=%d | pilot=%s | agent=%s",
         cfg.dry_run, cfg.fsm_source, cfg.tracking_source, prov, model,
         ",".join(statuses), cfg.fsm_max_age_days, cfg.fsm_stale_days, pilot_label,
+        cfg.agent_mode,
     )
 
     store = TrackingStore(cfg)
