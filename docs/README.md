@@ -36,10 +36,11 @@ Agent-native 底层架构。
 | [05-releases.md](05-releases.md) | **发哪些版**：可发布小版本迭代 → Phase1/2 Live |
 | [06-llm-providers.md](06-llm-providers.md) | **用什么模型**：混元 Lite 日常 + DeepSeek 抽样验证 |
 | [07-dev-e2e-consensus.md](07-dev-e2e-consensus.md) | **开发 E2E 约定**：默认不真发企微，真发需显式说明 |
+| [08-follow-up-wedge-spec.md](08-follow-up-wedge-spec.md) | **v0.2 SSOT**：Follow-up wedge / 试点管家 |
 | [xlink-data.md](xlink-data.md) | XLink 工单数据口径（连接 / 字段 / 已验证查询） |
 
 ## 状态
 
-- 版本：**v0.1.0**（POC 技术路径）
+- 版本：**v0.1.0 已发布** · **v0.2 开发中**
 - 阶段：Phase 1 黑盒验证
 - 最近更新：2026-05-29

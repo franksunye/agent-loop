@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import sqlite3
+from datetime import datetime
 import sys
 import time
 from dataclasses import dataclass, field
@@ -66,6 +67,8 @@ class Config:
     fsm_time_field: str = field(default_factory=lambda: os.getenv("FSM_TIME_FIELD", "updateTime"))
     lookback_hours: int = field(default_factory=lambda: int(os.getenv("FSM_LOOKBACK_HOURS", "24")))
     fsm_batch_limit: int = field(default_factory=lambda: int(os.getenv("FSM_BATCH_LIMIT", "50")))
+    fsm_stale_days: int = field(default_factory=lambda: int(os.getenv("FSM_STALE_DAYS", "0")))
+    fsm_event_statuses: str = field(default_factory=lambda: os.getenv("FSM_EVENT_STATUSES", ""))
 
     # 追踪库（幂等水位线）
     tracking_source: str = field(
@@ -137,6 +140,13 @@ def fetch_completed_work_orders(cfg: Config, processed_ids: set[str]) -> List[Wo
     return work_orders
 
 
+def _resolve_event_statuses(cfg: Config) -> List[str]:
+    raw = (cfg.fsm_event_statuses or "").strip()
+    if raw:
+        return [s.strip() for s in raw.split(",") if s.strip()]
+    return [domain.COMPLETED_STATUS]
+
+
 def _fetch_from_mongo(cfg: Config, processed_ids: List[str]) -> List[WorkOrder]:
     """XLink 主路径：从 serviceAppointment 拉原始行，经防腐层翻译为 WorkOrder。"""
     from pymongo import MongoClient  # 懒加载
@@ -145,16 +155,40 @@ def _fetch_from_mongo(cfg: Config, processed_ids: List[str]) -> List[WorkOrder]:
         raise ValueError(
             "FSM_SOURCE=mongo 需要配置 FSM_MONGO_URL（见 .env.example / docs/xlink-data.md）"
         )
+    statuses = _resolve_event_statuses(cfg)
+    stale_days = cfg.fsm_stale_days if cfg.fsm_stale_days > 0 else 0
+    lookback = cfg.lookback_hours if stale_days <= 0 else 0
     client = MongoClient(cfg.fsm_mongo_url, serverSelectionTimeoutMS=8000)
     try:
         coll = client[cfg.fsm_mongo_db][domain.SA_COLLECTION]
-        query = domain.completed_query(cfg.lookback_hours, processed_ids, cfg.fsm_time_field)
+        query = domain.follow_up_events_query(
+            event_statuses=statuses,
+            stale_days=stale_days,
+            lookback_hours=lookback,
+            processed_ids=processed_ids,
+            time_field=cfg.fsm_time_field,
+        )
         cursor = (
             coll.find(query, domain.SA_PROJECTION)
             .sort(cfg.fsm_time_field, -1)
             .limit(cfg.fsm_batch_limit)
         )
-        return [domain.work_order_from_sa(doc) for doc in cursor]
+        work_orders = [domain.work_order_from_sa(doc) for doc in cursor]
+        now = domain.bj_now()
+        for wo in work_orders:
+            if not wo.completed_at:
+                continue
+            try:
+                raw = wo.completed_at
+                if isinstance(raw, datetime):
+                    ut = raw.replace(tzinfo=None) if raw.tzinfo else raw
+                else:
+                    s = str(raw).replace("Z", "")[:26].replace(" ", "T")
+                    ut = datetime.fromisoformat(s)
+                wo.stale_days = max(0, (now - ut).days)
+            except (TypeError, ValueError):
+                pass
+        return work_orders
     finally:
         client.close()
 

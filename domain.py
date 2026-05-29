@@ -94,6 +94,9 @@ class WorkOrder:
     assignee: str = ""           # 过渡展示，终局对齐 ServiceResource
     summary: str = ""            # 工单备注/描述（跟进文本来源；对齐 context/activity 正文）
     completed_at: str = ""
+    event_type: str = ""         # v0.2：follow-up 事件类型
+    stale_days: int = 0          # v0.2：在当前 status 停留天数
+    housekeeper_id: str = ""     # v0.2：exts.supervisorId
     source_ref: Dict[str, str] = field(default_factory=dict)  # 溯源：{system, collection, id}
 
     @property
@@ -150,6 +153,7 @@ def work_order_from_sa(doc: Dict[str, Any]) -> WorkOrder:
     """把一条原始 serviceAppointment 文档翻译为领域 WorkOrder。"""
     status = str(doc.get("status", ""))
     wid = str(doc.get("_id", "") or doc.get("id", ""))
+    exts = doc.get("exts") or {}
     return WorkOrder(
         work_order_id=wid,
         order_num=doc.get("orderNum", "") or "",
@@ -162,6 +166,8 @@ def work_order_from_sa(doc: Dict[str, Any]) -> WorkOrder:
         assignee=doc.get("assignee", "") or "",
         summary=doc.get("describe", "") or "",
         completed_at=str(doc.get("updateTime", "") or doc.get("createTime", "")),
+        event_type=event_type_for_status(status),
+        housekeeper_id=str(exts.get("supervisorId", "") or ""),
         source_ref={"system": SYSTEM_NAME, "collection": SA_COLLECTION, "id": wid},
     )
 
@@ -174,9 +180,51 @@ def completed_query(
     processed_ids: List[str],
     time_field: str = "updateTime",
 ) -> Dict[str, Any]:
-    """构造「新完工 + 未处理」工单的 Mongo 过滤条件。"""
-    q: Dict[str, Any] = {"status": COMPLETED_STATUS, "state": STATE_ACTIVE}
-    if lookback_hours and lookback_hours > 0:
+    """构造「新完工 + 未处理」工单条件（v0.1 兼容）。"""
+    return follow_up_events_query(
+        event_statuses=[COMPLETED_STATUS],
+        stale_days=0,
+        lookback_hours=lookback_hours,
+        processed_ids=processed_ids,
+        time_field=time_field,
+    )
+
+
+# v0.2 Follow-up wedge（docs/08-follow-up-wedge-spec.md）
+EVENT_STALE_SIGN_PENDING = "STALE_SIGN_PENDING"
+EVENT_STALE_VISIT_NO_DEAL = "STALE_VISIT_NO_DEAL"
+EVENT_PAYMENT_PENDING = "PAYMENT_PENDING"
+EVENT_COMPLETED_CARE = "COMPLETED_CARE"
+
+_STATUS_FOR_EVENT: Dict[str, str] = {
+    "206": EVENT_STALE_SIGN_PENDING,
+    "204": EVENT_STALE_VISIT_NO_DEAL,
+    "205": EVENT_PAYMENT_PENDING,
+    "403": EVENT_COMPLETED_CARE,
+}
+
+P0_FOLLOW_UP_STATUSES = ("206", "204")
+P1_FOLLOW_UP_STATUSES = ("205", "403")
+
+
+def event_type_for_status(status: str) -> str:
+    return _STATUS_FOR_EVENT.get(str(status), f"STATUS_{status}")
+
+
+def follow_up_events_query(
+    *,
+    event_statuses: List[str],
+    stale_days: int = 0,
+    lookback_hours: int = 0,
+    processed_ids: Optional[List[str]] = None,
+    time_field: str = "updateTime",
+) -> Dict[str, Any]:
+    """follow-up 事件 Mongo 条件：停滞（stale_days）或增量（lookback_hours）。"""
+    q: Dict[str, Any] = {"status": {"$in": list(event_statuses)}, "state": STATE_ACTIVE}
+    if stale_days and stale_days > 0:
+        since = bj_now() - timedelta(days=stale_days)
+        q[time_field] = {"$lt": since}
+    elif lookback_hours and lookback_hours > 0:
         since = bj_now() - timedelta(hours=lookback_hours)
         q[time_field] = {"$gte": since}
     if processed_ids:
@@ -188,7 +236,7 @@ def completed_query(
 SA_PROJECTION = {
     "_id": 1, "orderNum": 1, "city": 1, "serviceType": 1,
     "title": 1, "describe": 1, "name": 1, "phone": 1, "assignee": 1,
-    "status": 1, "updateTime": 1, "createTime": 1,
+    "status": 1, "updateTime": 1, "createTime": 1, "exts": 1,
 }
 
 
