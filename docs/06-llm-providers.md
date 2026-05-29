@@ -47,6 +47,16 @@ LLM_MODEL=deepseek-chat
 
 便于 SQL 对比同一工单在不同模型下的建议差异。
 
+## 单工单 A/B 对比脚本
+
+```bash
+python scripts/compare_llm_single_order.py --order-num GD2026057898
+python scripts/compare_llm_single_order.py --order-num GD2026059389 --round round2 --providers hunyuan
+# 产出：tmp/llm-compare/<工单号>/<时间戳[-round]>/{enrich,prompt_user,hunyuan,deepseek}.*
+```
+
+DeepSeek Key：agent-loop `.env` 的 `LLM_API_KEY` / `DEEPSEEK_API_KEY`，或 `DEEPSEEK_ENV_FILE`（默认会尝试 `stockwise/backend/.env`）。对比脚本与主引擎均会走 `suggestion_polish` 后处理（`--no-polish` 可关）。
+
 ## 参见
 
-- [05-releases.md](05-releases.md) · [xlink-data.md](xlink-data.md)
+- [05-releases.md](05-releases.md) · [xlink-data.md](xlink-data.md) · [13-action-spec-v02.md](13-action-spec-v02.md)

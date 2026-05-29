@@ -25,22 +25,35 @@ Agent-native 底层架构。
 > （`status=403`）。领域语义层 = Agent 的语义层，是通用化的命门。见
 > [04-domain-semantics](04-domain-semantics.md)。
 
-## 文档导航
+## 文档分层（公开 / 本地私有）
+
+### A. 公开文档（可进 Git）
 
 | 文档 | 说明 |
 |------|------|
 | [01-vision.md](01-vision.md) | **为什么**从「跟进行动引擎」撕口子（业务+战略论证） |
 | [02-architecture.md](02-architecture.md) | **是什么**：目标架构（三层运行时）与四大原语 |
-| [03-roadmap.md](03-roadmap.md) | **怎么走**：三阶段战略三阶段（黑盒→白盒→开源） |
+| [03-roadmap.md](03-roadmap.md) | **怎么走**：三阶段（黑盒→白盒→开源） |
 | [04-domain-semantics.md](04-domain-semantics.md) | **用什么语言思考**：领域语义对齐（Agent 的语义层） |
+| [changelog.md](changelog.md) | **版本摘要表**：每版一行，讨论功能放进哪个小版本 |
 | [05-releases.md](05-releases.md) | **发哪些版**：可发布小版本迭代 → Phase1/2 Live |
 | [06-llm-providers.md](06-llm-providers.md) | **用什么模型**：混元 Lite 日常 + DeepSeek 抽样验证 |
-| [07-dev-e2e-consensus.md](07-dev-e2e-consensus.md) | **开发 E2E 约定**：默认不真发企微，真发需显式说明 |
-| [08-follow-up-wedge-spec.md](08-follow-up-wedge-spec.md) | **v0.2 SSOT**：Follow-up wedge / 试点管家 |
-| [09-business-decisions.md](09-business-decisions.md) | **业务 ADR**：206 only、14 天窗、知识分层 |
-| [10-agent-steps-demo.md](10-agent-steps-demo.md) | **展示轨**：`AGENT_MODE=steps` + 只读 enrich |
-| [xlink-data.md](xlink-data.md) | XLink 工单数据口径（连接 / 字段 / 已验证查询） |
+| [13-action-spec-v02.md](13-action-spec-v02.md) | **跟进建议 JSON v0.2**（输出结构） |
 | [sops/](../sops/README.md) | **L2 SOP**（v0.4 启用，当前为大纲） |
+
+### B. 本地私有文档（企业内部，不进 Git）
+
+以下文件仅保留在本地，默认被 `.gitignore` 忽略：
+
+- `docs/xlink-data.md`
+- `docs/07-dev-e2e-consensus.md`
+- `docs/08-follow-up-wedge-spec.md`
+- `docs/09-business-decisions.md`
+- `docs/10-agent-steps-demo.md`
+- `docs/11-enrich-evidence-spec.md`
+- `docs/12-business-knowledge-follow-up.md`
+
+维护原则：公开文档写“方法与架构”，私有文档写“企业规则、生产口径、内部 SOP、账号与运维细节”。
 
 ## 状态
 

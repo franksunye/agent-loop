@@ -1,7 +1,8 @@
 # SOP 知识库（L2 · v0.4 启用）
 
 > **当前阶段（v0.2）**：仅大纲占位，**不**默认拼入 LLM prompt。  
-> 规则层（L1）见 [docs/09-business-decisions.md](../docs/09-business-decisions.md)。
+> 规则层（L1）见 [docs/09-business-decisions.md](../docs/09-business-decisions.md)。  
+> 运营经验（部位/渠道价值，已进 enrich「业务提示」）见 [docs/12-business-knowledge-follow-up.md](../docs/12-business-knowledge-follow-up.md)。
 
 ## 版本约定
 

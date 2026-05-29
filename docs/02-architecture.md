@@ -58,6 +58,24 @@ flowchart TB
   再用大模型生成结构化建议。
 - **POC 现状**：单轮 LLM 生成 JSON 建议（尚无 SOP 检索，启发式兜底）。
 
+#### 分支治理（v0.2.x 起执行）
+
+- 主流程保持薄编排：`ingest -> enrich -> llm -> polish -> card/trace`。
+- 业务分叉优先表驱动（策略映射）而非嵌套 if/else：
+  - `event_type -> strategy`
+  - `blocker_type -> action template`
+  - `priority rules -> rule chain`
+- 任何新增分支需可观测（trace 可解释）且可单测。
+
+#### 何时从轻编排升级到 LangGraph/Temporal
+
+满足以下任意两项，触发升级评审：
+
+1. 需要跨天等待的人机多轮状态（如阻塞回填超时重试）。
+2. 单工单存在并行子任务且要求失败恢复。
+3. 规则模块复杂度明显上升，主流程可维护性下降。
+4. 事故复盘中频繁出现“分支路径不可解释”。
+
 ### 3. Action Spec & UI Generation 行动规范与 UI 生成
 
 - **最具开源价值的硬资产**：Agent 产出的不是大白话，而是 **Action Spec（行动规范协议）**。

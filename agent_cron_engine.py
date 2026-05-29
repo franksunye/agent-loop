@@ -187,9 +187,13 @@ def _parse_webhook_map(raw: str) -> Dict[str, str]:
 
 
 def resolve_pilot_housekeepers(cfg: Config, db) -> None:
-    """解析试点管家 userId；写入 cfg.resolved_pilot_ids / pilot_id_to_name。"""
-    ids = _parse_csv(cfg.pilot_housekeeper_ids)
+    """解析试点管家 userId；写入 cfg.resolved_pilot_ids / pilot_id_to_name。
+
+    若配置了 FSM_PILOT_HOUSEKEEPERS（生产常用），则忽略 FSM_PILOT_HOUSEKEEPER_IDS，
+    避免 dev 残留 ID 与生产姓名试点混用。
+    """
     names = _parse_csv(cfg.pilot_housekeepers)
+    ids = [] if names else _parse_csv(cfg.pilot_housekeeper_ids)
     id_to_name: Dict[str, str] = {}
 
     for uid in ids:
@@ -492,15 +496,73 @@ class TrackingStore:
 # ======================================================================
 # 3. 推理层（LLM → 领域跟进建议 FollowUpSuggestion）
 # ======================================================================
-_SYSTEM_PROMPT = """你是家装售后服务的跟进行动助理（Follow-up Action Engine）。
-根据工单当前状态、停留时长、标题与备注，判断是否需要管家/销售人工推进，并给出可执行建议。
-只输出 JSON，不要多余文字。
-JSON 字段：
-- needs_follow_up: bool        是否需要跟进
-- priority: "high"|"medium"|"low"
-- reason: string               一句话原因（含状态/停留天数）
-- suggested_action: string     建议的具体动作（电话、复检、催签约等）
-- customer_sentiment: "positive"|"neutral"|"negative"
+_SYSTEM_PROMPT = """你是雨虹防水维修（渗漏治理）业务的跟进行动助理。
+场景：工单「待签约」——通常已勘查并可能有正式报价，需输出 **可审批的跟进方案**（非一句空话）。
+
+纪律：
+1. 只依据用户消息「系统查证」写内容；禁止编造金额、部位、渠道、合同。
+2. 已有生效签约合同 → 「需要跟进」=false，「报价状态」=已有生效签约。
+3. 「引用查证」每条必须能在系统查证中找到对应句；不得虚构。
+4. 「沟通要点」2～4 条，像电话提纲（问什么、确认什么），不要写「尽快联系」 alone。
+5. 「优先级依据」2～4 条，引用停留天数、金额、渠道、业务提示等。
+6. 「业务提示」可影响优先级，不可替代查证；查证中无「业务提示」行则不得编造。
+7. 沟通要点须贴合本单部位与渠道，勿照抄示例中的「屋面」等字样。
+8. 「客户情绪」默认「中性」；仅当查证出现明确情绪线索时才用「积极/消极」。
+
+只输出一个 JSON 对象，中文键名，中文枚举。规格见 docs/13-action-spec-v02.md。
+
+必填结构：
+{
+  "规格版本": "v0.2",
+  "需要跟进": true,
+  "优先级": "中",
+  "客户情绪": "中性",
+  "原因摘要": "1～2句，管家扫一眼即懂",
+  "优先级依据": ["依据1", "依据2"],
+  "情况判断": {
+    "商机阶段": "待签约",
+    "报价状态": "已正式报价未签约 | 无正式报价 | 已有生效签约",
+    "金额与方案": "仅写查证出现的金额与方案要点",
+    "渠道与部位": "仅写查证出现的渠道与渗漏部位"
+  },
+  "跟进方案": {
+    "主行动": "一句话主行动",
+    "沟通要点": ["要点1", "要点2", "要点3"],
+    "避免事项": ["勿承诺查证未出现的优惠/工期"]
+  },
+  "引用查证": ["摘自查证的短句1", "短句2"]
+}
+
+## 优质输出示例（仅学结构与语气；当前工单以系统查证为准，勿抄本例数字）
+
+{
+  "规格版本": "v0.2",
+  "需要跟进": true,
+  "优先级": "高",
+  "客户情绪": "中性",
+  "原因摘要": "已正式报价40653元，停留4天，屋面类客单价高，需推进签约。",
+  "优先级依据": [
+    "已停留4天，待签约停滞",
+    "正式报价40653元，金额较高",
+    "屋面/屋顶类部位客单价高，业务提示优先跟进"
+  ],
+  "情况判断": {
+    "商机阶段": "待签约",
+    "报价状态": "已正式报价未签约",
+    "金额与方案": "正式报价40653元；方案：X5-P-热施工、X5-金属屋面；质保5年",
+    "渠道与部位": "渠道：小红书；部位：屋面（具体位置见查证）"
+  },
+  "跟进方案": {
+    "主行动": "电话回访客户，确认报价是否接受，推动签约。",
+    "沟通要点": [
+      "确认客户是否收到正式报价单，对金额和方案有无疑问",
+      "强调质保年限与工艺要点，解答客户顾虑",
+      "询问期望施工时间，屋面单可说明优先排期"
+    ],
+    "避免事项": ["勿承诺查证未出现的优惠或折扣"]
+  },
+  "引用查证": ["已正式报价 40653元（屋面）", "方案与质保见查证", "业务提示：屋面优先跟进"]
+}
 """
 
 
@@ -543,23 +605,21 @@ def _reason_follow_up_steps(cfg: Config, wo: WorkOrder) -> Tuple[Optional[Follow
 
     provider, api_key, base_url, model, json_mode = cfg.resolved_llm()
     if provider == "heuristic" or not api_key:
-        s = _heuristic_suggestion(wo)
-        if enrich_ctx.has_signed_contract:
-            s.needs_follow_up = False
-            s.reason = "系统查询显示已有签约合同，建议先核对工单状态是否未更新"
+        s = _heuristic_suggestion(wo, enrich_ctx)
         steps.append({"step": 2, "kind": "heuristic", "name": "suggest", "status": "ok"})
         trace = ReasoningTrace(
             work_order_id=wo.work_order_id, event_type=wo.event_type,
             mode="steps_heuristic", model="heuristic",
             prompt_user=user_prompt,
-            raw_response=json.dumps(s.to_dict(), ensure_ascii=False),
-            parsed=s.to_dict(), status="ok", created_at=now,
+            raw_response=json.dumps(s.to_display_dict(), ensure_ascii=False),
+            parsed=s.to_display_dict(), status="ok", created_at=now,
             steps_json=json.dumps(steps, ensure_ascii=False),
         )
         return s, trace
 
     suggestion, trace = _llm_follow_up(
         cfg, wo, provider, api_key, base_url, model, json_mode, user_prompt, now,
+        enrich_ctx=enrich_ctx,
     )
     trace.mode = f"steps_llm_{provider}"
     steps.append({
@@ -579,18 +639,19 @@ def _reason_follow_up_oneshot(cfg: Config, wo: WorkOrder) -> Tuple[Optional[Foll
     provider, api_key, base_url, model, json_mode = cfg.resolved_llm()
 
     if provider == "heuristic" or not api_key:
-        s = _heuristic_suggestion(wo)
+        s = _heuristic_suggestion(wo, None)
         trace = ReasoningTrace(
             work_order_id=wo.work_order_id, event_type=wo.event_type, mode="heuristic",
             model="heuristic", prompt_user=wo.followup_text,
-            raw_response=json.dumps(s.to_dict(), ensure_ascii=False),
-            parsed=s.to_dict(), status="ok", created_at=now,
+            raw_response=json.dumps(s.to_display_dict(), ensure_ascii=False),
+            parsed=s.to_display_dict(), status="ok", created_at=now,
         )
         return s, trace
 
     user_prompt = f"工单号: {wo.order_num}\n{wo.followup_text}"
     return _llm_follow_up(
         cfg, wo, provider, api_key, base_url, model, json_mode, user_prompt, now,
+        enrich_ctx=None,
     )
 
 
@@ -604,6 +665,7 @@ def _llm_follow_up(
     json_mode: bool,
     user_prompt: str,
     now: str,
+    enrich_ctx: Any = None,
 ) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
     from openai import OpenAI
     import time
@@ -621,7 +683,7 @@ def _llm_follow_up(
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            "temperature": 0.2,
+            "temperature": 0.15,
         }
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
@@ -634,13 +696,21 @@ def _llm_follow_up(
             trace.prompt_tokens = usage.prompt_tokens or 0
             trace.completion_tokens = usage.completion_tokens or 0
             trace.total_tokens = usage.total_tokens or 0
+        trace.status = "ok"
         try:
             s = _parse_llm_json(content)
+            if enrich_ctx is not None:
+                from suggestion_polish import polish_suggestion
+
+                s = polish_suggestion(wo, enrich_ctx, s)
+                trace.mode = f"{trace.mode}+polish"
         except json.JSONDecodeError:
             logger.warning("LLM 返回非法 JSON，回退启发式：%s", content[:200])
-            s = _heuristic_suggestion(wo)
+            s = _heuristic_suggestion(wo, enrich_ctx)
             trace.mode = "llm_fallback_heuristic"
-        trace.parsed = s.to_dict()
+        trace.parsed = s.to_display_dict()
+        if trace.status == "ok":
+            trace.raw_response = json.dumps(s.to_display_dict(), ensure_ascii=False)
         return s, trace
     except Exception as e:
         trace.latency_ms = int((time.perf_counter() - t0) * 1000)
@@ -649,69 +719,178 @@ def _llm_follow_up(
         return None, trace
 
 
-def _heuristic_suggestion(wo: WorkOrder) -> FollowUpSuggestion:
-    """无 LLM 时的确定性兜底：结合事件类型与关键词。"""
+def _heuristic_suggestion(wo: WorkOrder, enrich_ctx: Any = None) -> FollowUpSuggestion:
+    """无 LLM 时的确定性兜底；有 enrich 时尽量填满 v0.2 结构。"""
+    from agent_tools import EnrichedContext
+
+    ctx: Optional[EnrichedContext] = enrich_ctx
     text = f"{wo.title} {wo.summary}"
     negative = any(k in text for k in ["不满", "担心", "投诉", "尽快", "复检", "问题", "偏低"])
-    pending = any(k in text for k in ["下次", "补装", "后续", "复检", "建议"])
-    no_text = not wo.summary.strip()
     stale = wo.stale_days >= 7
+    high_part = bool(
+        ctx and any("屋面" in p or "屋顶" in p for p in (ctx.leak_sites or []))
+    )
+    low_channel = bool(ctx and ctx.channel_label and "抖音" in ctx.channel_label)
 
-    if wo.event_type == domain.EVENT_STALE_SIGN_PENDING:
+    if ctx and ctx.has_signed_contract:
         return FollowUpSuggestion(
-            needs_follow_up=True,
-            priority="high" if stale else "medium",
-            reason=f"待签约已停留 {wo.stale_days} 天",
-            suggested_action="电话推进签约或确认客户顾虑",
-            customer_sentiment="neutral",
-        )
-    if wo.event_type == domain.EVENT_STALE_VISIT_NO_DEAL:
-        return FollowUpSuggestion(
-            needs_follow_up=True,
-            priority="high" if stale else "medium",
-            reason=f"上门未成交已停留 {wo.stale_days} 天",
-            suggested_action="回访了解顾虑，预约二次上门或调整方案",
-            customer_sentiment="negative" if negative else "neutral",
+            needs_follow_up=False,
+            priority="低",
+            customer_sentiment="中性",
+            reason_summary="系统查证显示已有生效签约合同，建议先核对工单状态是否未更新。",
+            priority_reasons=["已有生效签约合同"],
+            situation=domain.FollowUpSituation(
+                stage="待签约",
+                quote_status="已有生效签约",
+                amount_plan="见查证",
+                channel_part=ctx.channel_label or ctx.source_type_label,
+            ),
+            action_plan=domain.FollowUpActionPlan(
+                primary_action="核对工单状态与合同是否一致",
+                talk_points=["确认系统合同与工单状态为何不一致"],
+                avoid=["勿重复催促已签约客户"],
+            ),
+            evidence_refs=(ctx.evidence_lines or [])[:5],
         )
 
-    needs = negative or pending or no_text or wo.is_completed
+    quote_status = "无正式报价"
+    amount_plan = ""
+    if ctx and ctx.has_quote and ctx.quotes:
+        quote_status = "已正式报价未签约"
+        q0 = ctx.quotes[0]
+        amt = q0.get("amount_yuan")
+        amount_plan = f"{amt:.0f}元" if isinstance(amt, (int, float)) else ""
+        pkgs = "、".join((q0.get("package_names") or [])[:2])
+        if pkgs:
+            amount_plan += f"；{pkgs}"
+
+    priority = "高" if (high_part or stale) else ("低" if low_channel else "中")
+    if high_part and ctx and ctx.quotes:
+        q0 = ctx.quotes[0]
+        amt = q0.get("amount_yuan")
+        amt_s = f"{amt:.0f}元" if isinstance(amt, (int, float)) else "—"
+        reason_summary = (
+            f"待签约停留{wo.stale_days}天，屋面类高客单，已报价{amt_s}未支付，建议优先电话推进签约。"
+        )
+    elif ctx and ctx.has_quote:
+        reason_summary = (
+            f"待签约停留{wo.stale_days}天，已正式报价未支付，建议电话确认并推进签约。"
+        )
+    else:
+        reason_summary = f"待签约停留{wo.stale_days}天，建议确认报价与签约意向。"
+
+    priority_reasons = [f"停留{wo.stale_days}天"]
+    if amount_plan:
+        priority_reasons.append(f"报价情况：{amount_plan}")
+    if high_part:
+        priority_reasons.append("屋面/屋顶部位，客单价通常较高")
+    if low_channel:
+        priority_reasons.append("抖音渠道，建议先核实意向再重投入")
+    if ctx and ctx.business_hints:
+        priority_reasons.extend(ctx.business_hints[:1])
+
+    talk_points = [
+        "确认客户是否已看清正式报价与方案范围",
+        "了解是否在比价、装修进度或付款安排上存在障碍",
+    ]
+    if amount_plan:
+        talk_points.insert(0, f"围绕查证中的报价（{amount_plan.split('；')[0]}）确认认可度")
+
     return FollowUpSuggestion(
-        needs_follow_up=needs,
-        priority="high" if negative else ("medium" if pending or stale else "low"),
-        reason=(
-            "检测到客户顾虑或遗留事项" if (negative or pending)
-            else (f"已完工，建议回访（停留 {wo.stale_days} 天）" if wo.is_completed else "建议主动跟进")
+        needs_follow_up=True,
+        priority=priority,
+        customer_sentiment="消极" if negative else "中性",
+        reason_summary=reason_summary,
+        priority_reasons=priority_reasons[:4],
+        situation=domain.FollowUpSituation(
+            stage="待签约",
+            quote_status=quote_status,
+            amount_plan=amount_plan or "查证无报价",
+            channel_part=(
+                f"{ctx.channel_label or ctx.source_type_label}；"
+                f"{'、'.join(ctx.leak_sites) if ctx else ''}"
+            ).strip("；"),
         ),
-        suggested_action=(
-            "电话回访并确认遗留事项处理时间" if (negative or pending)
-            else "电话回访确认客户满意度"
+        action_plan=domain.FollowUpActionPlan(
+            primary_action="电话确认报价并推进签约",
+            talk_points=talk_points[:4],
+            avoid=["勿承诺查证未出现的折扣、工期或增项"],
         ),
-        customer_sentiment="negative" if negative else "neutral",
+        evidence_refs=(ctx.evidence_lines[:5] if ctx else []),
     )
 
 
 # ======================================================================
 # 4. 输出层（企业微信群机器人）
 # ======================================================================
-_PRIORITY_EMOJI = {"high": "🔴", "medium": "🟡", "low": "🟢"}
+_PRIORITY_EMOJI = {"高": "🔴", "中": "🟡", "低": "🟢", "high": "🔴", "medium": "🟡", "low": "🟢"}
 
 
-def build_card_markdown(wo: WorkOrder, s: FollowUpSuggestion) -> str:
+def _enrich_output_from_trace(trace: ReasoningTrace) -> Optional[Dict[str, Any]]:
+    if not trace.steps_json:
+        return None
+    try:
+        steps = json.loads(trace.steps_json)
+    except json.JSONDecodeError:
+        return None
+    for st in steps:
+        if st.get("name") == "enrich_work_order_context":
+            out = st.get("output")
+            return out if isinstance(out, dict) else None
+    return None
+
+
+def build_card_markdown(
+    wo: WorkOrder,
+    s: FollowUpSuggestion,
+    *,
+    enrich_output: Optional[Dict[str, Any]] = None,
+) -> str:
     emoji = _PRIORITY_EMOJI.get(s.priority, "⚪")
     hk = wo.housekeeper_name or "未分配管家"
     stale_line = f"> **停留**：{wo.stale_days} 天\n" if wo.stale_days else ""
+    verdict = (enrich_output or {}).get("business_verdict") or ""
+    enrich_line = f"> **结论**：{verdict}\n" if verdict else ""
+    evidence = (enrich_output or {}).get("evidence_lines") or []
+    if not evidence and s.evidence_refs:
+        evidence = s.evidence_refs
+    evidence_block = "".join(f"> - {line}\n" for line in evidence[:4])
+
+    basis_block = "".join(f"> - {x}\n" for x in (s.priority_reasons or [])[:4])
+    talk_block = "".join(
+        f"> {i + 1}. {p}\n" for i, p in enumerate((s.action_plan.talk_points or [])[:4])
+    )
+    avoid_block = ""
+    if s.action_plan.avoid:
+        avoid_block = "> **避免**：" + "；".join(s.action_plan.avoid[:2]) + "\n"
+
+    sit = s.situation
+    situation_line = ""
+    if sit.quote_status or sit.amount_plan:
+        situation_line = (
+            f"> **情况**：{sit.quote_status}"
+            + (f" · {sit.amount_plan}" if sit.amount_plan else "")
+            + "\n"
+        )
+
     return (
         f"### {emoji} 跟进行动 · {wo.city}\n"
         f"> **管家**：{hk}\n"
         f"> **工单号**：{wo.order_num or wo.work_order_id}\n"
         f"> **状态**：{wo.task_type}\n"
         f"{stale_line}"
-        f"> **事件**：{wo.event_type}\n"
+        f"> **事件**：{domain.event_type_label(wo.event_type)}\n"
+        f"{enrich_line}"
+        f"{evidence_block}"
         f"> **客户**：{wo.customer_name}（{wo.phone}）\n"
         f"> **优先级**：<font color=\"warning\">{s.priority}</font>\n"
         f"> **客户情绪**：{s.customer_sentiment}\n"
-        f"> **原因**：{s.reason}\n"
-        f"> **建议动作**：{s.suggested_action}"
+        f"{situation_line}"
+        f"> **原因摘要**：{s.reason_summary}\n"
+        f"> **主行动**：{s.action_plan.primary_action}\n"
+        f"{basis_block}"
+        f"> **沟通要点**：\n{talk_block}"
+        f"{avoid_block}"
     )
 
 
@@ -797,12 +976,21 @@ def run(cfg: Optional[Config] = None) -> int:
 
                 logger.info(
                     "工单 %s [%s] → %s | %s %dtok %dms",
-                    ref, wo.event_type, json.dumps(suggestion.to_dict(), ensure_ascii=False),
-                    trace.mode, trace.total_tokens, trace.latency_ms,
+                    ref,
+                    domain.event_type_label(wo.event_type),
+                    json.dumps(suggestion.to_display_dict(), ensure_ascii=False),
+                    trace.mode,
+                    trace.total_tokens,
+                    trace.latency_ms,
                 )
 
                 if suggestion.needs_follow_up:
-                    card = build_card_markdown(wo, suggestion)
+                    enrich_out = (
+                        _enrich_output_from_trace(trace)
+                        if cfg.agent_mode == "steps"
+                        else None
+                    )
+                    card = build_card_markdown(wo, suggestion, enrich_output=enrich_out)
                     sent = send_wecom_card(cfg, card, housekeeper_id=wo.housekeeper_id)
                     status = "sent" if sent else "send_failed"
                 else:

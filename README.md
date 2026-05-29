@@ -3,7 +3,8 @@
 用**最小成本**验证一个想法：在不改动现有 FSM 系统的前提下，让一个 AI Agent 定时
 轮询「新完工工单」，自动判断是否需要人工跟进，并把结构化建议推送到企业微信群。
 
-> 📚 **战略文档**（目标 / 路径 / 当下）见 [`docs/`](docs/README.md)。
+> 📚 **战略文档**（目标 / 路径 / 当下）见 [`docs/`](docs/README.md)。  
+> 📋 **版本摘要 / 排期讨论**见 [`docs/changelog.md`](docs/changelog.md)（对齐 business_3.0）。
 > 本 README 只讲 POC 怎么跑、怎么接。
 
 ## 核心理念

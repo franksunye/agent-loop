@@ -4,7 +4,8 @@
 > **交付纪律**：每个版本必须 **完整闭环、可独立验证、可发布**（有 tag、有验收清单、有回滚方式），
 > 禁止「半个功能」上线。
 >
-> 与 [03-roadmap.md](03-roadmap.md) 的关系：03 是战略三阶段；本文是 **工程可执行版本切分**。
+> 与 [03-roadmap.md](03-roadmap.md) 的关系：03 是战略三阶段；本文是 **工程可执行版本切分**。  
+> **版本摘要时间线**（讨论排期用）：[changelog.md](changelog.md)（对齐 business_3.0 的 `docs/changelog.md`）。
 
 ## 版本总览
 
@@ -82,9 +83,17 @@ flowchart LR
 ## v0.2 · follow-up-wedge（当前冲刺）
 
 **目标**：对齐研讨 **Follow-up Action Engine** 切口——在 **wait → follow-up** 主战场产生可审批建议，
-用四位管家（刘沐泽、李小军、刘清瑞、李俊达）生产数据验证 ROI。
+用四位管家（刘沐泽、李小军、刘清瑞、李俊达）**生产只读**数据验证 ROI。
 
-**规格 SSOT**：[08-follow-up-wedge-spec.md](08-follow-up-wedge-spec.md)
+**规格 SSOT**：[08-follow-up-wedge-spec.md](08-follow-up-wedge-spec.md)（含 **§6 v0.2.0 封版共识**）
+
+### v0.2.0 封版共识（已定）
+
+| # | 项 | 决定 |
+|---|-----|------|
+| 1 | 数据 | **生产 `xlink` 只读**；dev 仅开发调试 |
+| 2 | 企微 | **不发群**；`DRY_RUN=true` 审阅卡片/日志 |
+| 3 | Agent | **`AGENT_MODE=steps` 必做**；enrich 产出 **业务查证**（仅报价 B + 签约）并展示在卡片与 trace |
 
 ### 交付范围
 
@@ -98,21 +107,42 @@ flowchart LR
 
 ### v0.2 验收清单（打勾即 tag `v0.2.0`）
 
-- [x] dev 只读：能捞到 **206 停滞** 工单（batch 控量；204 已排除）
-- [x] 管家路由：卡片带归属管家姓名 / 状态 / 停留天数 / 事件类型
-- [x] `dedupe_key` = `event_type:work_order_id` 幂等
-- [x] `reasoning_traces.event_type` 落库
-- [x] `LLM_PROVIDER=hunyuan`：真实推理 + trace
-- [x] `DRY_RUN=true` 开发 E2E 全通；`--reset-tracking` 可重复验
-- [x] 文档：08 规格 + 09 业务 ADR + SOP 大纲（sops/）
-- [x] 试点过滤：`FSM_PILOT_HOUSEKEEPERS` / `FSM_PILOT_HOUSEKEEPER_IDS`；可选 `WECOM_WEBHOOK_MAP`
-- [x] 展示轨骨架：`AGENT_MODE=steps` + `agent_tools.enrich` + `steps_json` trace
-- [ ] enrich 关联键与业务字典对齐 + Demo A/B 盲评
-- [ ] （可选）2 管家试点群真发，记录采纳样本
+**工程（dev 可先验）**
 
-### v0.2.x · agent-steps（展示轨，不打断试点）
+- [x] dev 只读：能捞到 **206** 工单（204 已排除；14 天窗）
+- [x] 管家路由：卡片带归属管家 / 状态 / 停留天数 / 事件类型
+- [x] `dedupe_key` 幂等；`reasoning_traces.event_type` + `steps_json`
+- [x] `LLM_PROVIDER=hunyuan` + `DRY_RUN` 预览；`--reset-tracking`
+- [x] 文档：08 / 09 / sops 大纲
+- [x] `AGENT_MODE=steps` + enrich（仅报价 B、签约、`business_verdict`）
+- [x] 卡片含 **系统查证** 行（steps 模式）
 
-见 [10-agent-steps-demo.md](10-agent-steps-demo.md)。默认 `AGENT_MODE=oneshot`。
+**封版（必须生产只读）**
+
+- [ ] **生产 `xlink`**：`FSM_EVENT_STATUSES=206` + `FSM_MAX_AGE_DAYS=14` + 四位管家，能捞取并推理
+- [ ] **`AGENT_MODE=steps`**：日志/卡片中 **查证结论** 与建议一致（已签约不单催签等）
+- [ ] **不发群**：仅 `DRY_RUN=true` 审阅 ≥10 条样本（业务可读）
+- [ ] ADR-008 与本节共识已写入 changelog
+
+### v0.2.1（紧随 v0.2.0 的小版本）
+
+**目标**：不依赖“系统天然有阻塞字段”，先用 Agent 引导管家补齐关键上下文。
+
+**交付范围（最小可用）**：
+
+1. 卡片增加提示：`阻塞信息：待采集`（默认未知）。
+2. 提供最小回填语法：`A价格/B时机/C方案/D无响应 + 一句话`。
+3. 回填结果先写入 `reasoning_traces`（或等价轻量表），不改业务主库。
+
+**验收**：
+
+- [ ] 5 条样本中，管家可在 10 秒内完成回填（可用性验证）。
+- [ ] 回填字段可被下一轮推理读取并在建议中体现。
+- [ ] 无回填时系统保持 `UNKNOWN`，不伪造阻塞结论。
+
+### agent-steps（v0.2.0 主验收轨）
+
+见 [10-agent-steps-demo.md](10-agent-steps-demo.md)。**封版必须用 `steps`**；`oneshot` 保留作对照/降级。
 
 ### 本地运行参考
 
@@ -144,6 +174,7 @@ python agent_cron_engine.py --reset-tracking
 2. 新增 `FSM_LOOKBACK_HOURS` / `FSM_BATCH_LIMIT` 生产合理默认值。
 3. 运行报告：每轮结束写 `run_summary` 表或日志 artifact（处理数/成功/失败/token 合计）。
 4. Runbook 一页：`docs/runbooks/pilot-cron.md`（如何手动触发、如何停 cron、如何查 trace）。
+5. 阻塞采集统计：新增每周指标（采集率、平均回填时延、`UNKNOWN` 占比）。
 
 ### 明确不做
 
@@ -176,6 +207,7 @@ python agent_cron_engine.py --reset-tracking
 1. `domain.py`：`enrich_work_order_context(wo)` 只读补全。
 2. `sops/waterproof-follow-up-v1.md`（配置，非硬编码业务 if-else）。
 3. 配置开关：`REQUIRE_FOLLOW_UP_ONLY_HIGH=false` 等试点调参。
+4. 把已采集的阻塞类型接入 SOP 话术分支（无采集仍走 `UNKNOWN` 通道）。
 
 ### 明确不做
 

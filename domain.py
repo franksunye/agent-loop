@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Optional
 # XLink 库内时间为北京本地时间（无时区）；Runner 多为 UTC，必须显式校正。
 _BJ_TZ = timezone(timedelta(hours=8))
 
+ACTION_SPEC_VERSION = "v0.2"
+
 
 def bj_now() -> datetime:
     return datetime.now(_BJ_TZ).replace(tzinfo=None)
@@ -30,12 +32,9 @@ def bj_now() -> datetime:
 SYSTEM_NAME = "xlink"
 SA_COLLECTION = "serviceAppointment"
 
-# 工单已完工：XLink status 码（小程序菜单「已完工」=status=403）
 COMPLETED_STATUS = "403"
-# 有效数据状态：1=有效，-1=作废
 STATE_ACTIVE = 1
 
-# status 码 → 领域任务类型 taskType（对齐 sa-list-display-map.STATUS_TO_TASK_TYPE）
 _STATUS_TO_TASK_TYPE: Dict[str, str] = {
     "101": "待接单", "102": "待接单", "103": "待接单",
     "104": "联系客户", "105": "预约上门",
@@ -47,13 +46,11 @@ _STATUS_TO_TASK_TYPE: Dict[str, str] = {
     "501": "待评价", "502": "待评价", "999": "跟进超时",
 }
 
-# status 码 → 领域队列桶 group（对齐 sa-list-display-map.STATUS_TO_GROUP）
 _STATUS_TO_GROUP: Dict[str, str] = {
     "101": "to_accept", "102": "to_accept", "103": "to_accept",
     "104": "need_contact", "105": "onsite", "202": "onsite",
-}  # 其余默认 following
+}
 
-# 行政区划码 → 城市名（展示用，未命中回退原码）
 _CITY_CODE_MAP: Dict[str, str] = {
     "110100": "北京", "120100": "天津", "310100": "上海", "440100": "广州",
     "440300": "深圳", "330100": "杭州", "510100": "成都", "320100": "南京",
@@ -74,31 +71,28 @@ def _city_name(code: Any) -> str:
 
 
 # ======================================================================
-# 领域模型（Domain Models）— 引擎其余部分只认这些
+# 领域模型（Domain Models）
 # ======================================================================
 @dataclass
 class WorkOrder:
-    """工单领域读模型（glossary §1.1 / §3）。
-
-    顶层字段为领域语言；不暴露任何 XLink 系统码。`work_order_id` 用于跨边界引用与去重。
-    """
+    """工单领域读模型（glossary §1.1 / §3）。"""
 
     work_order_id: str
     order_num: str = ""
     title: str = ""
-    task_type: str = ""          # 领域任务类型，如「已完工」
-    group: str = "following"     # 队列桶
-    city: str = ""               # 城市名（已翻译）
-    customer_name: str = ""      # 过渡展示，终局对齐 Account/Contact
+    task_type: str = ""
+    group: str = "following"
+    city: str = ""
+    customer_name: str = ""
     phone: str = ""
-    assignee: str = ""           # 过渡展示，终局对齐 ServiceResource
-    summary: str = ""            # 工单备注/描述（跟进文本来源；对齐 context/activity 正文）
+    assignee: str = ""
+    summary: str = ""
     completed_at: str = ""
-    event_type: str = ""         # v0.2：follow-up 事件类型
-    stale_days: int = 0          # v0.2：在当前 status 停留天数
-    housekeeper_id: str = ""     # v0.2：exts.supervisorId
-    housekeeper_name: str = ""   # v0.2：展示用，摄取后补全
-    source_ref: Dict[str, str] = field(default_factory=dict)  # 溯源：{system, collection, id}
+    event_type: str = ""
+    stale_days: int = 0
+    housekeeper_id: str = ""
+    housekeeper_name: str = ""
+    source_ref: Dict[str, str] = field(default_factory=dict)
 
     @property
     def is_completed(self) -> bool:
@@ -106,7 +100,6 @@ class WorkOrder:
 
     @property
     def dedupe_key(self) -> str:
-        """幂等键：同一工单在不同 follow-up 事件下分别处理。"""
         et = self.event_type or "UNKNOWN"
         return f"{et}:{self.work_order_id}"
 
@@ -119,7 +112,7 @@ class WorkOrder:
         if self.stale_days > 0:
             parts.append(f"已停留：{self.stale_days} 天")
         if self.event_type:
-            parts.append(f"跟进事件：{self.event_type}")
+            parts.append(f"跟进事件：{event_type_label(self.event_type)}")
         parts.append(f"工单标题：{self.title or '(无)'}")
         if self.summary:
             parts.append(f"备注：{self.summary}")
@@ -129,37 +122,160 @@ class WorkOrder:
         return "\n".join(parts)
 
 
+# LLM / 展示：中文优先
+_PRIORITY_CN = {"high": "高", "medium": "中", "low": "低", "高": "高", "中": "中", "低": "低"}
+_SENTIMENT_CN = {
+    "positive": "积极", "neutral": "中性", "negative": "消极",
+    "积极": "积极", "中性": "中性", "消极": "消极",
+}
+
+
+def _norm_priority(val: Any) -> str:
+    key = str(val or "低").strip().lower()
+    return _PRIORITY_CN.get(key, str(val or "低"))
+
+
+def _norm_sentiment(val: Any) -> str:
+    key = str(val or "中性").strip().lower()
+    return _SENTIMENT_CN.get(key, str(val or "中性"))
+
+
+def _pick(d: Dict[str, Any], *keys: str, default: Any = None) -> Any:
+    for k in keys:
+        if k in d:
+            return d[k]
+    return default
+
+
+def _as_str_list(val: Any) -> List[str]:
+    if val is None:
+        return []
+    if isinstance(val, list):
+        return [str(x).strip() for x in val if str(x).strip()]
+    s = str(val).strip()
+    return [s] if s else []
+
+
 @dataclass
-class FollowUpSuggestion:
-    """跟进建议 / Action Spec 雏形（glossary：被采纳后即一条 WorkOrderActivity）。
+class FollowUpSituation:
+    """对系统查证的归纳（不得新增事实）。"""
 
-    全部领域语言；未来演进为强类型 Action Spec 协议，引用领域 id。
-    """
+    stage: str = ""
+    quote_status: str = ""
+    amount_plan: str = ""
+    channel_part: str = ""
 
-    needs_follow_up: bool = False
-    priority: str = "low"                  # high | medium | low
-    reason: str = ""
-    suggested_action: str = ""
-    customer_sentiment: str = "neutral"    # positive | neutral | negative
+    def to_dict(self) -> Dict[str, str]:
+        return {
+            "商机阶段": self.stage,
+            "报价状态": self.quote_status,
+            "金额与方案": self.amount_plan,
+            "渠道与部位": self.channel_part,
+        }
+
+    @classmethod
+    def from_dict(cls, d: Any) -> "FollowUpSituation":
+        if not isinstance(d, dict):
+            return cls()
+        return cls(
+            stage=str(_pick(d, "商机阶段", "stage", default="") or ""),
+            quote_status=str(_pick(d, "报价状态", "quote_status", default="") or ""),
+            amount_plan=str(_pick(d, "金额与方案", "金额与方案摘要", "amount_plan", default="") or ""),
+            channel_part=str(_pick(d, "渠道与部位", "channel_part", default="") or ""),
+        )
+
+
+@dataclass
+class FollowUpActionPlan:
+    """可执行的跟进方案。"""
+
+    primary_action: str = ""
+    talk_points: List[str] = field(default_factory=list)
+    avoid: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "needs_follow_up": self.needs_follow_up,
-            "priority": self.priority,
-            "reason": self.reason,
-            "suggested_action": self.suggested_action,
-            "customer_sentiment": self.customer_sentiment,
+            "主行动": self.primary_action,
+            "沟通要点": self.talk_points,
+            "避免事项": self.avoid,
         }
+
+    @classmethod
+    def from_dict(cls, d: Any) -> "FollowUpActionPlan":
+        if not isinstance(d, dict):
+            primary = str(d or "") if d else ""
+            return cls(primary_action=primary)
+        return cls(
+            primary_action=str(_pick(d, "主行动", "primary_action", "建议动作", default="") or ""),
+            talk_points=_as_str_list(_pick(d, "沟通要点", "talk_points", default=[])),
+            avoid=_as_str_list(_pick(d, "避免事项", "avoid", default=[])),
+        )
+
+
+@dataclass
+class FollowUpSuggestion:
+    """跟进建议 / Action Spec v0.2（docs/13-action-spec-v02.md）。"""
+
+    spec_version: str = ACTION_SPEC_VERSION
+    needs_follow_up: bool = False
+    priority: str = "低"
+    customer_sentiment: str = "中性"
+    reason_summary: str = ""
+    priority_reasons: List[str] = field(default_factory=list)
+    situation: FollowUpSituation = field(default_factory=FollowUpSituation)
+    action_plan: FollowUpActionPlan = field(default_factory=FollowUpActionPlan)
+    evidence_refs: List[str] = field(default_factory=list)
+
+    @property
+    def reason(self) -> str:
+        return self.reason_summary
+
+    @property
+    def suggested_action(self) -> str:
+        return self.action_plan.primary_action
+
+    def to_display_dict(self) -> Dict[str, Any]:
+        return {
+            "规格版本": self.spec_version,
+            "需要跟进": self.needs_follow_up,
+            "优先级": self.priority,
+            "客户情绪": self.customer_sentiment,
+            "原因摘要": self.reason_summary,
+            "优先级依据": self.priority_reasons,
+            "情况判断": self.situation.to_dict(),
+            "跟进方案": self.action_plan.to_dict(),
+            "引用查证": self.evidence_refs,
+        }
+
+    def to_dict(self) -> Dict[str, Any]:
+        return self.to_display_dict()
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "FollowUpSuggestion":
         defaults = cls()
+        plan_raw = _pick(d, "跟进方案", "action_plan", default=None)
+        if plan_raw is None:
+            legacy_action = _pick(d, "建议动作", "suggested_action", default="")
+            plan_raw = {"主行动": legacy_action} if legacy_action else {}
+
+        situation_raw = _pick(d, "情况判断", "situation", default={})
+
+        reason_summary = str(
+            _pick(d, "原因摘要", "原因", "reason", default=defaults.reason_summary) or ""
+        )
+
         return cls(
-            needs_follow_up=bool(d.get("needs_follow_up", defaults.needs_follow_up)),
-            priority=str(d.get("priority", defaults.priority)),
-            reason=str(d.get("reason", defaults.reason)),
-            suggested_action=str(d.get("suggested_action", defaults.suggested_action)),
-            customer_sentiment=str(d.get("customer_sentiment", defaults.customer_sentiment)),
+            spec_version=str(_pick(d, "规格版本", "spec_version", default=ACTION_SPEC_VERSION) or ACTION_SPEC_VERSION),
+            needs_follow_up=bool(_pick(d, "需要跟进", "needs_follow_up", default=defaults.needs_follow_up)),
+            priority=_norm_priority(_pick(d, "优先级", "priority", default=defaults.priority)),
+            customer_sentiment=_norm_sentiment(
+                _pick(d, "客户情绪", "customer_sentiment", default=defaults.customer_sentiment)
+            ),
+            reason_summary=reason_summary,
+            priority_reasons=_as_str_list(_pick(d, "优先级依据", "priority_reasons", default=[])),
+            situation=FollowUpSituation.from_dict(situation_raw),
+            action_plan=FollowUpActionPlan.from_dict(plan_raw),
+            evidence_refs=_as_str_list(_pick(d, "引用查证", "evidence_refs", default=[])),
         )
 
 
@@ -167,7 +283,6 @@ class FollowUpSuggestion:
 # 翻译：serviceAppointment(系统) → WorkOrder(领域)
 # ======================================================================
 def work_order_from_sa(doc: Dict[str, Any]) -> WorkOrder:
-    """把一条原始 serviceAppointment 文档翻译为领域 WorkOrder。"""
     status = str(doc.get("status", ""))
     wid = str(doc.get("_id", "") or doc.get("id", ""))
     exts = doc.get("exts") or {}
@@ -189,9 +304,6 @@ def work_order_from_sa(doc: Dict[str, Any]) -> WorkOrder:
     )
 
 
-# ======================================================================
-# 系统查询构造（已完工工单的增量捞取条件，仅本层知道码值）
-# ======================================================================
 def completed_query(
     lookback_hours: int,
     processed_ids: List[str],
@@ -213,6 +325,18 @@ EVENT_STALE_VISIT_NO_DEAL = "STALE_VISIT_NO_DEAL"
 EVENT_PAYMENT_PENDING = "PAYMENT_PENDING"
 EVENT_COMPLETED_CARE = "COMPLETED_CARE"
 
+EVENT_TYPE_LABELS: Dict[str, str] = {
+    EVENT_STALE_SIGN_PENDING: "待签约停滞",
+    EVENT_STALE_VISIT_NO_DEAL: "上门未成交停滞",
+    EVENT_PAYMENT_PENDING: "待支付停滞",
+    EVENT_COMPLETED_CARE: "完工关怀",
+}
+
+
+def event_type_label(event_type: str) -> str:
+    return EVENT_TYPE_LABELS.get(event_type or "", event_type or "跟进事件")
+
+
 _STATUS_FOR_EVENT: Dict[str, str] = {
     "206": EVENT_STALE_SIGN_PENDING,
     "204": EVENT_STALE_VISIT_NO_DEAL,
@@ -220,7 +344,6 @@ _STATUS_FOR_EVENT: Dict[str, str] = {
     "403": EVENT_COMPLETED_CARE,
 }
 
-# 业务口径（v0.2）：仅 206 待签约由管家跟进；204 上门未成交不纳入
 P0_FOLLOW_UP_STATUSES = ("206",)
 P1_FOLLOW_UP_STATUSES = ("205", "403")
 
@@ -239,12 +362,7 @@ def follow_up_events_query(
     supervisor_ids: Optional[List[str]] = None,
     time_field: str = "updateTime",
 ) -> Dict[str, Any]:
-    """follow-up 事件 Mongo 条件。
-
-    - max_age_days：仅最近 N 天内有更新（超过则不再跟进，v0.2 默认 14）
-    - stale_days：至少停滞 N 天（可选，默认 0）
-    - lookback_hours：v0.1 完工增量窗口（与 max_age 互斥时优先 max_age/stale）
-    """
+    """follow-up 事件 Mongo 条件。"""
     q: Dict[str, Any] = {"status": {"$in": list(event_statuses)}, "state": STATE_ACTIVE}
     time_q: Dict[str, Any] = {}
     if max_age_days and max_age_days > 0:
@@ -263,7 +381,6 @@ def follow_up_events_query(
     return q
 
 
-# 投影（拉取所需系统字段）
 SA_PROJECTION = {
     "_id": 1, "orderNum": 1, "city": 1, "serviceType": 1,
     "title": 1, "describe": 1, "name": 1, "phone": 1, "assignee": 1,
@@ -271,9 +388,6 @@ SA_PROJECTION = {
 }
 
 
-# ======================================================================
-# Mock：原始 serviceAppointment 形状的样例（走同一翻译器，确保 ACL 被验证）
-# ======================================================================
 MOCK_SA_RECORDS: List[Dict[str, Any]] = [
     {
         "_id": "SA-MOCK-001", "orderNum": "GD20260529001", "status": "403", "state": 1,
@@ -284,13 +398,13 @@ MOCK_SA_RECORDS: List[Dict[str, Any]] = [
     {
         "_id": "SA-MOCK-002", "orderNum": "GD20260529002", "status": "403", "state": 1,
         "city": "310100", "serviceType": "11", "title": "李女士的工单",
-        "describe": "安装智能门锁完成，老人不熟悉操作，客户担心电池续航，问能否上门复检。",
+        "describe": "安装智能门锁完成，客户担心电池续航，问能否上门复检。",
         "name": "李女士", "phone": "139****5678", "updateTime": bj_now().isoformat(),
     },
     {
         "_id": "SA-MOCK-003", "orderNum": "GD20260529003", "status": "403", "state": 1,
         "city": "110100", "serviceType": "40", "title": "张先生的工单",
-        "describe": "",  # 真实数据 describe 多为空，验证空文本兜底
+        "describe": "",
         "name": "张先生", "phone": "137****9012", "updateTime": bj_now().isoformat(),
     },
 ]
