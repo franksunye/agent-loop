@@ -78,4 +78,4 @@
 
 ## 参见
 
-- [08-follow-up-wedge-spec.md](08-follow-up-wedge-spec.md) · [11-enrich-evidence-spec.md](11-enrich-evidence-spec.md)
+- 私有文档 `docs/private/PRIV-08-follow-up-wedge-spec.md` · 私有文档 `docs/private/PRIV-11-enrich-evidence-spec.md`

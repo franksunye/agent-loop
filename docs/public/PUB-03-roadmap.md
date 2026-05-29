@@ -30,7 +30,7 @@ flowchart LR
   Agent 产出强类型 JSON，前端渲染可交互的「审批卡片」（Approve/Reject），
   人类点同意后系统确定性执行。
 - **领域对齐**：改为消费 `business_3_0` ERM 暴露的领域读模型（`WorkOrder` 等），
-  消除直连 Mongo 的影子真源；Action Spec 引用领域 id。见 [04-domain-semantics](04-domain-semantics.md) Phase 2。
+  消除直连 Mongo 的影子真源；Action Spec 引用领域 id。见 [04-domain-semantics](PUB-04-domain-semantics.md) Phase 2。
 - **资产积累**：Generative UI（Action Spec Cards）协议与 React 组件库；
   本地化的现场 SOP 向量知识库。
 - **证明点**：从「提醒关怀」升级到「自动起草报价单、一键发起审批」，
@@ -65,7 +65,7 @@ POC 引擎已落地并跑通，作为阶段 1 的最小竖切。详见仓库根 
 1. 申请 prod `xlink` 只读账号，复核生产 `status=403` 口径与量级。
 2. **立领域语义 seam**：把系统码（`403`/区划码）隔离进唯一的领域适配器，
    引擎其余部分改说领域语言，对齐 `12-domain-glossary`（见
-   [04-domain-semantics](04-domain-semantics.md)）。**廉价保险，建议当下就做。**
+   [04-domain-semantics](PUB-04-domain-semantics.md)）。**廉价保险，建议当下就做。**
 3. 接真实 LLM key，用真实工单产出建议，人工评估质量。
 4. 开真实企微推送，到目标群试运行，开始**记录采纳率 / 转化数据**。
 5. 沉淀首版防水维修跟进 SOP，喂给 Reasoning 原语。
@@ -73,5 +73,5 @@ POC 引擎已落地并跑通，作为阶段 1 的最小竖切。详见仓库根 
 ### 已知待增强
 
 - 工单 `describe`（备注）偏稀疏 → 跟进文本素材有限，需关联 `workflowNode`
-  等补全（见 [xlink-data.md](xlink-data.md)）。
+  等补全（见私有文档 `docs/private/PRIV-xlink-data.md`）。
 - 当前 Action Spec 为扁平 JSON，尚未演进到 Generative UI 协议（阶段 2）。

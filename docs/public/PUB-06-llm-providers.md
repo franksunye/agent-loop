@@ -11,7 +11,7 @@
 | **hunyuan**（默认） | 腾讯混元 Lite | 免费额度 | 日常 E2E、试点 cron、大批量跑通 |
 | **deepseek** | DeepSeek Chat | 按量付费 | 每周抽 N 单对比质量；向业务演示「最好效果」 |
 
-`DRY_RUN=true` **只影响企微是否真发**（开发 E2E 默认，见 [07-dev-e2e-consensus.md](07-dev-e2e-consensus.md)），不自动关闭 LLM。要零 API 调用请显式 `LLM_PROVIDER=heuristic`。
+`DRY_RUN=true` **只影响企微是否真发**（开发 E2E 默认，详见私有文档 `docs/private/PRIV-07-dev-e2e-consensus.md`），不自动关闭 LLM。要零 API 调用请显式 `LLM_PROVIDER=heuristic`。
 
 ## 混元配置（与 stockwise 一致）
 
@@ -59,4 +59,4 @@ DeepSeek Key：agent-loop `.env` 的 `LLM_API_KEY` / `DEEPSEEK_API_KEY`，或 `D
 
 ## 参见
 
-- [05-releases.md](05-releases.md) · [xlink-data.md](xlink-data.md) · [13-action-spec-v02.md](13-action-spec-v02.md)
+- [PUB-05-releases.md](PUB-05-releases.md) · 私有文档 `docs/private/PRIV-xlink-data.md` · [PUB-13-action-spec-v02.md](PUB-13-action-spec-v02.md)

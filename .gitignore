@@ -21,10 +21,5 @@ logs/
 .DS_Store
 
 # 本地私有文档（企业内部规则/知识，不进 Git）
-docs/xlink-data.md
-docs/07-dev-e2e-consensus.md
-docs/08-follow-up-wedge-spec.md
-docs/09-business-decisions.md
-docs/10-agent-steps-demo.md
-docs/11-enrich-evidence-spec.md
-docs/12-business-knowledge-follow-up.md
+docs/private/**
+docs/PRIV-*.md

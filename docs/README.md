@@ -23,7 +23,7 @@ Agent-native 底层架构。
 
 > **能复用的前提**：Agent 必须在**领域语言**里思考，而不是 XLink 的系统黑话
 > （`status=403`）。领域语义层 = Agent 的语义层，是通用化的命门。见
-> [04-domain-semantics](04-domain-semantics.md)。
+> [04-domain-semantics](public/PUB-04-domain-semantics.md)。
 
 ## 文档分层（公开 / 本地私有）
 
@@ -31,29 +31,41 @@ Agent-native 底层架构。
 
 | 文档 | 说明 |
 |------|------|
-| [01-vision.md](01-vision.md) | **为什么**从「跟进行动引擎」撕口子（业务+战略论证） |
-| [02-architecture.md](02-architecture.md) | **是什么**：目标架构（三层运行时）与四大原语 |
-| [03-roadmap.md](03-roadmap.md) | **怎么走**：三阶段（黑盒→白盒→开源） |
-| [04-domain-semantics.md](04-domain-semantics.md) | **用什么语言思考**：领域语义对齐（Agent 的语义层） |
-| [changelog.md](changelog.md) | **版本摘要表**：每版一行，讨论功能放进哪个小版本 |
-| [05-releases.md](05-releases.md) | **发哪些版**：可发布小版本迭代 → Phase1/2 Live |
-| [06-llm-providers.md](06-llm-providers.md) | **用什么模型**：混元 Lite 日常 + DeepSeek 抽样验证 |
-| [13-action-spec-v02.md](13-action-spec-v02.md) | **跟进建议 JSON v0.2**（输出结构） |
+| [PUB-01-vision.md](public/PUB-01-vision.md) | **为什么**从「跟进行动引擎」撕口子（业务+战略论证） |
+| [PUB-02-architecture.md](public/PUB-02-architecture.md) | **是什么**：目标架构（三层运行时）与四大原语 |
+| [PUB-03-roadmap.md](public/PUB-03-roadmap.md) | **怎么走**：三阶段（黑盒→白盒→开源） |
+| [PUB-04-domain-semantics.md](public/PUB-04-domain-semantics.md) | **用什么语言思考**：领域语义对齐（Agent 的语义层） |
+| [PUB-changelog.md](public/PUB-changelog.md) | **版本摘要表**：每版一行，讨论功能放进哪个小版本 |
+| [PUB-05-releases.md](public/PUB-05-releases.md) | **发哪些版**：可发布小版本迭代 → Phase1/2 Live |
+| [PUB-06-llm-providers.md](public/PUB-06-llm-providers.md) | **用什么模型**：混元 Lite 日常 + DeepSeek 抽样验证 |
+| [PUB-13-action-spec-v02.md](public/PUB-13-action-spec-v02.md) | **跟进建议 JSON v0.2**（输出结构） |
 | [sops/](../sops/README.md) | **L2 SOP**（v0.4 启用，当前为大纲） |
+| [PUB-private-docs-template.md](public/PUB-private-docs-template.md) | 私有文档管理模板与边界 |
 
 ### B. 本地私有文档（企业内部，不进 Git）
 
-以下文件仅保留在本地，默认被 `.gitignore` 忽略：
+命名与目录规则（双保险）：
 
-- `docs/xlink-data.md`
-- `docs/07-dev-e2e-consensus.md`
-- `docs/08-follow-up-wedge-spec.md`
-- `docs/09-business-decisions.md`
-- `docs/10-agent-steps-demo.md`
-- `docs/11-enrich-evidence-spec.md`
-- `docs/12-business-knowledge-follow-up.md`
+- 目录：`docs/private/`
+- 文件前缀：`PRIV-`
+- Git 忽略：`.gitignore` 中 `docs/private/**` 与 `docs/PRIV-*.md`
+
+示例（本地存在，不入库）：
+
+- `docs/private/PRIV-xlink-data.md`
+- `docs/private/PRIV-09-business-decisions.md`
 
 维护原则：公开文档写“方法与架构”，私有文档写“企业规则、生产口径、内部 SOP、账号与运维细节”。
+
+## 防误提交流程（推荐）
+
+可将私有文档拦截脚本挂到本地 pre-commit：
+
+```bash
+ln -sf ../../scripts/check_no_private_docs.sh .git/hooks/pre-commit
+```
+
+脚本位置：`scripts/check_no_private_docs.sh`（拦截 `docs/private/**` 与 `docs/PRIV-*.md`）。
 
 ## 状态
 

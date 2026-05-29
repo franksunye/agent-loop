@@ -1,7 +1,7 @@
 # 02 · 目标架构与四大原语
 
 > 本文描述**最终形态**。当前 POC 只实现了其中最薄的一条竖切（见
-> [03-roadmap.md](03-roadmap.md)）。先有蓝图，才好取舍。
+> [03-roadmap.md](PUB-03-roadmap.md)）。先有蓝图，才好取舍。
 
 ## 设计准则
 
@@ -47,7 +47,7 @@ flowchart TB
   工单状态变更 Webhook / DB 轮询。
 - **关键职责**：这里是**系统语义→领域语义的翻译边界**。原始 `serviceAppointment`、
   `status=403`、区划码等系统黑话，必须在此翻译成领域语言（`WorkOrder.completed`、
-  城市名…），Agent 大脑之后只见领域对象。详见 [04-domain-semantics](04-domain-semantics.md)。
+  城市名…），Agent 大脑之后只见领域对象。详见 [04-domain-semantics](PUB-04-domain-semantics.md)。
 - **开源价值**：任何 B2B 系统把「非结构化文本/日志」丢进来，就能触发引擎。
 - **POC 现状**：DB 增量轮询（XLink `serviceAppointment` 完工事件）；领域适配器待立 seam。
 

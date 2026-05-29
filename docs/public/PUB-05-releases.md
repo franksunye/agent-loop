@@ -4,8 +4,8 @@
 > **交付纪律**：每个版本必须 **完整闭环、可独立验证、可发布**（有 tag、有验收清单、有回滚方式），
 > 禁止「半个功能」上线。
 >
-> 与 [03-roadmap.md](03-roadmap.md) 的关系：03 是战略三阶段；本文是 **工程可执行版本切分**。  
-> **版本摘要时间线**（讨论排期用）：[changelog.md](changelog.md)（对齐 business_3.0 的 `docs/changelog.md`）。
+> 与 [03-roadmap.md](PUB-03-roadmap.md) 的关系：03 是战略三阶段；本文是 **工程可执行版本切分**。  
+> **版本摘要时间线**（讨论排期用）：[changelog.md](PUB-changelog.md)（对齐 business_3.0 的 `docs/changelog.md`）。
 
 ## 版本总览
 
@@ -45,7 +45,7 @@ flowchart LR
 | 试点 / Live | `mongo` | dev → prod `xlink` 分阶段切换 |
 | 仅 CI 离线 | `mock` | 无网跑结构测试，**不作为封版路径** |
 
-### LLM：免费为主，付费验证（见 [06-llm-providers.md](06-llm-providers.md)）
+### LLM：免费为主，付费验证（见 [06-llm-providers.md](PUB-06-llm-providers.md)）
 
 | `LLM_PROVIDER` | 用途 |
 |----------------|------|
@@ -85,7 +85,7 @@ flowchart LR
 **目标**：对齐研讨 **Follow-up Action Engine** 切口——在 **wait → follow-up** 主战场产生可审批建议，
 用四位管家（刘沐泽、李小军、刘清瑞、李俊达）**生产只读**数据验证 ROI。
 
-**规格 SSOT**：[08-follow-up-wedge-spec.md](08-follow-up-wedge-spec.md)（含 **§6 v0.2.0 封版共识**）
+**规格 SSOT**：私有文档 `docs/private/PRIV-08-follow-up-wedge-spec.md`（含 **§6 v0.2.0 封版共识**）
 
 ### v0.2.0 封版共识（已定）
 
@@ -142,7 +142,7 @@ flowchart LR
 
 ### agent-steps（v0.2.0 主验收轨）
 
-见 [10-agent-steps-demo.md](10-agent-steps-demo.md)。**封版必须用 `steps`**；`oneshot` 保留作对照/降级。
+见私有文档 `docs/private/PRIV-10-agent-steps-demo.md`。**封版必须用 `steps`**；`oneshot` 保留作对照/降级。
 
 ### 本地运行参考
 
@@ -263,7 +263,7 @@ python agent_cron_engine.py --reset-tracking
 
 | 维度 | 标准 |
 |------|------|
-| 数据 | prod `xlink` 只读；口径与 [xlink-data.md](xlink-data.md) 签字确认 |
+| 数据 | prod `xlink` 只读；口径与私有文档 `docs/private/PRIV-xlink-data.md` 签字确认 |
 | 运行 | GitHub Actions 或等价调度；Turso 追踪；Secrets 轮换流程 |
 | 可靠性 | 单轮失败不影响下轮；LLM/企微失败有告警（邮件/企微运维群） |
 | 安全 | 密钥不进库；日志脱敏 phone；只读账号最小权限 |
@@ -354,5 +354,5 @@ python agent_cron_engine.py --reset-tracking
 
 ## 参见
 
-- [01-vision.md](01-vision.md) · [02-architecture.md](02-architecture.md) · [03-roadmap.md](03-roadmap.md)
-- [04-domain-semantics.md](04-domain-semantics.md) · [xlink-data.md](xlink-data.md)
+- [01-vision.md](PUB-01-vision.md) · [02-architecture.md](PUB-02-architecture.md) · [03-roadmap.md](PUB-03-roadmap.md)
+- [PUB-04-domain-semantics.md](PUB-04-domain-semantics.md) · 私有文档 `docs/private/PRIV-xlink-data.md`
