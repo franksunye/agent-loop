@@ -70,7 +70,7 @@ export default async function Page({
           </Suspense>
           {isAuthEnabled() ? <LogoutButton /> : null}
           <Badge variant="outline" className="font-mono text-xs">
-            FS-AOL · v0.2.x
+            FS-AOL · v0.2.4
           </Badge>
         </div>
       </header>

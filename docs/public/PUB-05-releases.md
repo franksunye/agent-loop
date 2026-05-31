@@ -148,6 +148,7 @@ flowchart LR
 | **v0.2.1** | 产品结构缺口（卡片 → Console、阻塞回填） | ✅ `v0.2.1` |
 | **v0.2.2** | 业务语义（管家收件箱、已跟进、outcomes 可读） | ✅ `v0.2.2` |
 | **v0.2.3** | 闭环指标（Console 轻量 KPI + 7 日离 206 率脚本） | ✅ `v0.2.3` |
+| **v0.2.4** | Console 收口（生产 E2E + 收件箱 UX + state_at + 排序） | ✅ `v0.2.4` |
 
 > **产品轨 `v1.0` tag 纪律**：在 v0.2.x 闭环被证明且试点 KPI 达标（如 App 内处置率 ≥70%）后再打；见 [PUB-07-product-surface.md](PUB-07-product-surface.md) §1。
 
@@ -265,6 +266,31 @@ python scripts/advancement_rate.py --limit 50 --window-days 7
 - [x] Console 一屏可见 ≥2 个闭环相关指标（有埋点/可查）
 - [x] 只读脚本在 dev 或生产只读账号下可跑通并产出可复现数字
 - [x] v0.2.x 阶段门：业务方认可「可在 Console 完成看→处置→记 outcome」闭环演示
+
+---
+
+### v0.2.4 · Console 收口（已发布 `v0.2.4`，2026-05-31）
+
+**目标**：在 v0.2.3 阶段门基础上，完成 **生产 E2E** 与 **Console 收件箱可用性** 收口，正式结束 v0.2.x 线。
+
+**交付范围**：
+
+| 项 | 说明 |
+|----|------|
+| 生产 E2E | GHA cron（北京 08:00–22:00  hourly）+ Turso 追踪 + 企微紧凑卡 + Console 深链（`CONSOLE_BASE_URL`） |
+| Console 认证 | 详情/阻塞 API 公开；列表需登录；试点管家 URL/cookie 筛选 |
+| 收件箱 UX | 四层信息（工单 / 情况 / 动作 / 处置）；紧凑行布局；平铺排序（最新 / 管家 / 滞留 / 优先级 / 处置） |
+| 滞留口径 | `follow_up_logs.state_at` 入库工单 `updateTime`；Console **展示时现算**滞留天数 |
+| Trace | 查证结论 + 竖向时间线 + 折叠调试信息 |
+| 本地闭环 | `make seed-local` + webpack dev + 共用 `data/agent_loop_tracking.db` |
+| 预备 | 企微应用消息模块（`wecom_app.py`，v0.3 部署路径） |
+
+**验收清单（打勾即 tag `v0.2.4`）**：
+
+- [x] GHA cron 手动/定时跑通：引擎写 Turso、企微 webhook 可达、Console 深链可开
+- [x] 收件箱可扫读：无横向滚动；工单事实与建议时间分离；滞留随日历递增
+- [x] 排序与管家筛选可组合（URL 持久化）
+- [x] v0.2.x 收口共识：产品方认可当前 Console + 通知链路，可进入 v0.3 规模化试点
 
 ---
 

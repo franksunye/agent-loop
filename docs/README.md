@@ -71,6 +71,6 @@ ln -sf ../../scripts/check_no_private_docs.sh .git/hooks/pre-commit
 
 ## 状态
 
-- 版本：POC `poc-followup`（原 v0.1/v0.2）已跑通；产品轨起点 **v1.0 Console MVP** 待启动
-- 阶段：Stage 0 闭环系统（FS-AOL 楔子）
+- 版本：**v0.2.4** 已封版（Stage 0 最小闭环产品）；下一步 **v0.3.0** 规模化试点
+- 阶段：Stage 0 闭环系统（FS-AOL 楔子）→ 准备 Stage 0→1 试点
 - 最近更新：2026-05-31
