@@ -3,6 +3,7 @@ requests>=2.31.0
 pydantic>=2.6.0
 openai>=1.30.0
 pymongo>=4.6.0              # FSM_SOURCE=mongo（XLink 主路径，v0.2 默认）
-# 按需启用：
-# libsql-client>=0.3.1      # TRACKING_SOURCE=cloud (Turso)
+libsql-client>=0.3.1       # TRACKING_SOURCE=cloud (Turso)
+# 注：CI/部署优先用 `pip install -e packages/aol`（依赖见 packages/aol/pyproject.toml）；
+#     本文件保留给习惯 requirements 的本地开发者。
 # psycopg2-binary>=2.9.9    # FSM_SOURCE=postgres（备用）

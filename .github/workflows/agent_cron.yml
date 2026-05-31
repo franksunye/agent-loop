@@ -27,9 +27,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install -r requirements.txt
-          pip install pymongo            # FSM_SOURCE=mongo（XLink 主路径）
-          pip install libsql-client      # TRACKING_SOURCE=cloud（Turso）
+          pip install -e packages/aol    # aol 包（含 pymongo / libsql-client / openai 等依赖）
 
       - name: Execute Incremental Agent
         env:
@@ -63,4 +61,4 @@ jobs:
           WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
           WECOM_WEBHOOK_MAP: ${{ vars.WECOM_WEBHOOK_MAP }}
         run: |
-          python agent_cron_engine.py
+          python run_cron.py

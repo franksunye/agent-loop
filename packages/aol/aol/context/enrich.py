@@ -12,8 +12,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from agent_cron_engine import Config
-    from domain import WorkOrder
+    from ..config import Config
+    from ..domain import WorkOrder
 
 logger = logging.getLogger("agent-loop.tools")
 

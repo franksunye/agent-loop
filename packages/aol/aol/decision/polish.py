@@ -6,7 +6,7 @@ import copy
 import re
 from typing import Any, Optional
 
-from domain import FollowUpSuggestion, WorkOrder
+from ..domain import FollowUpSuggestion, WorkOrder
 
 _VAGUE_ACTIONS = ("准备回访", "建议回访", "回访确认", "进一步沟通")
 _HIGH_VALUE_PARTS = ("屋面", "屋顶", "金属屋面")
