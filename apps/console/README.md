@@ -27,6 +27,26 @@ FSM_SOURCE=mock LLM_PROVIDER=heuristic AGENT_MODE=steps python run_cron.py
 
 Turso 云库：复制 `.env.local`（勿提交），设置 `LIBSQL_URL` / `LIBSQL_AUTH_TOKEN`。
 
+## 最简登录
+
+设置 `CONSOLE_AUTH_PASSWORD` 后启用（`middleware` 保护全站 + API）。默认用户名 `admin`（`CONSOLE_AUTH_USER` 可改）。
+
+```bash
+# apps/console/.env.local
+CONSOLE_AUTH_USER=admin
+CONSOLE_AUTH_PASSWORD=your-password
+# 可选：与会话 cookie 值分离（更安全）
+# CONSOLE_SESSION_SECRET=$(openssl rand -hex 32)
+```
+
+未设 `CONSOLE_AUTH_PASSWORD` 时本地**免登录**（便于开发）。Vercel 生产务必配置。
+
+| 路由 | 说明 |
+|------|------|
+| `/login` | 登录页 |
+| `POST /api/auth/login` | 校验账号，写 HttpOnly Cookie |
+| `POST /api/auth/logout` | 退出 |
+
 ## 页面
 
 | 路由 | 脊柱 | 说明 |

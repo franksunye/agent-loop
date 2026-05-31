@@ -18,6 +18,8 @@ import {
   decisionClasses,
   encodeKey,
 } from "@/lib/labels";
+import { isAuthEnabled } from "@/lib/auth";
+import { LogoutButton } from "@/components/logout-button";
 
 export const dynamic = "force-dynamic";
 
@@ -52,9 +54,12 @@ export default async function Page() {
             Follow-up Agent · 看见并处置今天的跟进建议
           </p>
         </div>
-        <Badge variant="outline" className="font-mono text-xs">
-          FS-AOL · v1.0 console-mvp
-        </Badge>
+        <div className="flex items-center gap-2">
+          {isAuthEnabled() ? <LogoutButton /> : null}
+          <Badge variant="outline" className="font-mono text-xs">
+            FS-AOL · v1.0 console-mvp
+          </Badge>
+        </div>
       </header>
 
       <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
