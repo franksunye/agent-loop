@@ -28,7 +28,7 @@
 
 | 标记 | 代号 | 内容 | 状态 | 喂给 |
 |------|------|------|------|------|
-| `poc-followup` | scaffold + wedge | 防腐层 + trace + 混元/启发式 + steps enrich + 企微预览（原 v0.1/v0.2） | v0.1.0 已 tag；v0.2 收尾 | v1.0 |
+| `poc-followup` | scaffold + wedge | 防腐层 + trace + 混元/启发式 + steps enrich + 企微预览（原 v0.1/v0.2） | **`v0.1.0` + `v0.2.0` 已 tag** | v1.0 |
 | `poc-cron` | pilot-cron | GHA 定时 + Turso 追踪 + 批量稳定性（原 v0.3） | 规划 | v1.0 / v1.2 |
 | `poc-context` | context-sop | 上下文补全 + SOP v1（原 v0.4） | 规划 | v1.3+ |
 
@@ -137,10 +137,13 @@ flowchart LR
 
 ---
 
-## v0.2 · follow-up-wedge（当前冲刺）
+## v0.2 · follow-up-wedge（已发布 `v0.2.0`，2026-05-31）
 
 **目标**：对齐研讨 **Follow-up Action Engine** 切口——在 **wait → follow-up** 主战场产生可审批建议，
 用四位管家（刘沐泽、李小军、刘清瑞、李俊达）**生产只读**数据验证 ROI。
+
+> **封版说明**：`v0.2.0` 锚定楔子里程碑（206 + steps + Action Spec v0.2 + 试点管家 + 生产只读 DRY_RUN）。
+> 同期 main 上已落地 Turso 追踪与 GHA cron（原 v0.3 范围），**不并入本 tag 语义**；`v0.3.0` 另打 tag。
 
 **规格 SSOT**：私有文档 `docs/private/PRIV-08-follow-up-wedge-spec.md`（含 **§6 v0.2.0 封版共识**）
 
@@ -174,12 +177,12 @@ flowchart LR
 - [x] `AGENT_MODE=steps` + enrich（仅报价 B、签约、`business_verdict`）
 - [x] 卡片含 **系统查证** 行（steps 模式）
 
-**封版（必须生产只读）**
+**封版（必须生产只读）** — `v0.2.0` 已验收（2026-05-31）
 
-- [ ] **生产 `xlink`**：`FSM_EVENT_STATUSES=206` + `FSM_MAX_AGE_DAYS=14` + 四位管家，能捞取并推理
-- [ ] **`AGENT_MODE=steps`**：日志/卡片中 **查证结论** 与建议一致（已签约不单催签等）
-- [ ] **不发群**：仅 `DRY_RUN=true` 审阅 ≥10 条样本（业务可读）
-- [ ] ADR-008 与本节共识已写入 changelog
+- [x] **生产 `xlink`**：`FSM_EVENT_STATUSES=206` + `FSM_MAX_AGE_DAYS=14` + 四位管家，能捞取并推理
+- [x] **`AGENT_MODE=steps`**：日志/卡片中 **查证结论** 与建议一致（已签约不单催签等）
+- [x] **不发群**：仅 `DRY_RUN=true` 审阅卡片/日志（封版按共识接受，非正式 ≥10 卡盲评）
+- [x] ADR-008 与本节共识已写入 changelog（见 [PUB-changelog.md](PUB-changelog.md) `v0.2.0`）
 
 ### v0.2.1（紧随 v0.2.0 的小版本）
 
