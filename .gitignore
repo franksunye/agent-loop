@@ -31,3 +31,4 @@ next-env.d.ts
 # 本地私有文档（企业内部规则/知识，不进 Git）
 docs/private/**
 docs/PRIV-*.md
+.vercel
