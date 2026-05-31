@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fs-aol.dev/contracts/suggestion.schema.json",
+  "title": "FollowUpSuggestion",
+  "description": "Action Spec v0.2 — 跟进建议 JSON（中文键）。真源：docs/public/PUB-13-action-spec-v02.md",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "规格版本",
+    "需要跟进",
+    "优先级",
+    "客户情绪",
+    "原因摘要",
+    "优先级依据",
+    "情况判断",
+    "跟进方案",
+    "引用查证"
+  ],
+  "properties": {
+    "规格版本": {
+      "type": "string",
+      "const": "v0.2"
+    },
+    "需要跟进": {
+      "type": "boolean"
+    },
+    "优先级": {
+      "type": "string",
+      "enum": ["高", "中", "低"]
+    },
+    "客户情绪": {
+      "type": "string",
+      "enum": ["积极", "中性", "消极"]
+    },
+    "原因摘要": {
+      "type": "string",
+      "minLength": 1
+    },
+    "优先级依据": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "maxItems": 4
+    },
+    "情况判断": {
+      "type": "object",
+      "required": ["商机阶段", "报价状态", "金额与方案", "渠道与部位"],
+      "properties": {
+        "商机阶段": { "type": "string" },
+        "报价状态": {
+          "type": "string",
+          "enum": [
+            "已正式报价未签约",
+            "无正式报价",
+            "已有生效签约"
+          ]
+        },
+        "金额与方案": { "type": "string" },
+        "渠道与部位": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "跟进方案": {
+      "type": "object",
+      "required": ["主行动", "沟通要点", "避免事项"],
+      "properties": {
+        "主行动": { "type": "string", "minLength": 1 },
+        "沟通要点": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "maxItems": 4
+        },
+        "避免事项": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "引用查证": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "maxItems": 5
+    }
+  }
+}

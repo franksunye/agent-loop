@@ -20,6 +20,13 @@ logs/
 *.log
 .DS_Store
 
+# Node / Next.js（apps/console 与工作区根）
+node_modules/
+.next/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
 # 本地私有文档（企业内部规则/知识，不进 Git）
 docs/private/**
 docs/PRIV-*.md

@@ -206,7 +206,7 @@ flowchart LR
 ```bash
 cp .env.example .env
 pip install -r requirements.txt
-python agent_cron_engine.py --reset-tracking
+python run_cron.py --reset-tracking
 ```
 
 ---

@@ -15,7 +15,7 @@
 
 - 每条 SOP 场景需：**触发条件 / 建议动作 / 避免事项 / 样例（可选）**
 - 变更走 ADR 或 09 文档复审日期
-- 禁止在 `agent_cron_engine.py` 硬编码业务 if-else；场景逻辑进 SOP 或 `domain.py` 码表
+- 禁止在 `run_cron.py` / `packages/aol` 编排层硬编码业务 if-else；场景逻辑进 SOP 或 `domain.py` 码表
 
 ## 参见
 

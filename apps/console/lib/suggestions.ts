@@ -2,6 +2,7 @@ import { db, ensureSchema, TABLE_LOGS, TABLE_TRACES, TABLE_OUTCOMES } from "./db
 
 export type Decision = "approved" | "rejected" | "modified";
 
+/** Action Spec v0.2 — 键名对齐 contracts/suggestion.schema.json */
 export interface SuggestionDoc {
   规格版本?: string;
   需要跟进?: boolean;

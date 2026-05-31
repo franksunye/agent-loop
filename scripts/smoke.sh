@@ -23,12 +23,8 @@ else
   PY="${PYTHON:-python3}"
 fi
 
-# Entry point: stable across the refactor (run_cron.py shim once it exists).
-if [ -f "$REPO_ROOT/run_cron.py" ]; then
-  ENTRY=(run_cron.py)
-else
-  ENTRY=(agent_cron_engine.py)
-fi
+# Entry point: run_cron.py (GHA + local cron)
+ENTRY=(run_cron.py)
 
 TMPDB="$(mktemp -t aolsmoke.XXXXXX).db"
 trap 'rm -f "$TMPDB"' EXIT

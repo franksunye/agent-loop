@@ -1,0 +1,12 @@
+{
+  "name": "agent-loop-monorepo",
+  "version": "0.2.0",
+  "private": true,
+  "description": "FS-AOL monorepo: apps/console (Next.js) + packages/aol (Python engine).",
+  "scripts": {
+    "dev": "pnpm --filter console dev",
+    "build": "pnpm --filter console build",
+    "lint": "pnpm --filter console lint",
+    "smoke": "bash scripts/smoke.sh"
+  }
+}

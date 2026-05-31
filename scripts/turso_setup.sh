@@ -8,7 +8,7 @@
 #
 # 输出的 TURSO_URL / TURSO_TOKEN 同时用于：
 #   - 引擎（.env）：TURSO_URL / TURSO_TOKEN + TRACKING_SOURCE=cloud
-#   - Web（web/.env.local）：LIBSQL_URL / LIBSQL_AUTH_TOKEN
+#   - Console（apps/console/.env.local）：LIBSQL_URL / LIBSQL_AUTH_TOKEN
 set -euo pipefail
 
 DB_NAME="${1:-agent-loop}"

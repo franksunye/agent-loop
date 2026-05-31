@@ -1,0 +1,7 @@
+{
+  "prefixEnv": "AOL_TABLE_PREFIX",
+  "defaultPrefix": "aol_",
+  "logs": "follow_up_logs",
+  "traces": "reasoning_traces",
+  "outcomes": "suggestion_outcomes"
+}

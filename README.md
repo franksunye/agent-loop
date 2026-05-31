@@ -1,100 +1,65 @@
-# Agent-Loop · Agent-native 自动跟进引擎（POC）
+# FS-AOL Monorepo (agent-loop)
 
-用**最小成本**验证一个想法：在不改动现有 FSM 系统的前提下，让一个 AI Agent 定时
-轮询「新完工工单」，自动判断是否需要人工跟进，并把结构化建议推送到企业微信群。
+Field Service Agent Operating Layer — Python 跟进引擎 + Next.js 审批 Console，共享 Turso 追踪库与跨语言契约。
 
-> 📚 **战略文档**（目标 / 路径 / 当下）见 [`docs/`](docs/README.md)。  
-> 📋 **版本摘要 / 排期讨论**见 [`docs/changelog.md`](docs/changelog.md)（对齐 business_3.0）。
-> 本 README 只讲 POC 怎么跑、怎么接。
-
-## 核心理念
-
-- **零系统侵入**：只需向 FSM 库申请一个**只读账号**，现有系统无需改代码、无需发版。
-- **主动轮询，而非被动 Webhook**：GitHub Actions 每小时唤醒一次，去库里捞增量。
-- **天然幂等的拉取式状态机**：处理记录写入追踪库；推送失败的工单下一轮会被重新捞出重试，直到成功。
-- **没有 30 秒断头台**：Actions 单次生命周期长达数十分钟，可从容串行处理堆积工单。
-
-## 架构
-
-```
-GitHub Actions Cron  →  增量捞取(FSM 只读)  →  LLM 生成 Action Spec
-                                                      ↓
-企业微信群机器人  ←  推送 Markdown 卡片  ←  写入追踪库(幂等水位线)
-```
-
-编排逻辑在 `agent_cron_engine.py`（只说领域语言）；所有 XLink 系统知识
-（`serviceAppointment` / `status=403` / 区划码…）收拢在 `domain.py`（领域防腐层）。
-见 [`docs/04-domain-semantics.md`](docs/04-domain-semantics.md)。
-
-## 90 秒跑通（零依赖、零密钥）
-
-开发 E2E 默认 **`DRY_RUN=true`（企微只预览、不打扰群）**；真发需显式 `DRY_RUN=false`，见 [`docs/07-dev-e2e-consensus.md`](docs/07-dev-e2e-consensus.md)。
-
-离线结构验证仍可用 mock + heuristic：
-
-```bash
-FSM_SOURCE=mock LLM_PROVIDER=heuristic python agent_cron_engine.py
-```
-
-零依赖冒烟（历史路径）：
-
-```bash
-DRY_RUN=true python agent_cron_engine.py
-```
-
-会打印每张样例工单的结构化跟进建议和将要发送的企微卡片预览，并在
-`agent_loop_tracking.db` 中记录水位线。再次运行会因幂等而不重复处理（验证去重）。
-
-## 接入真实环境（XLink）
-
-1. 复制配置：`cp .env.example .env`，按注释填写。
-2. 数据源 `FSM_SOURCE=mongo`（XLink 主路径），填写 `FSM_MONGO_URL`。
-   - dev：`mongodb://<user>:<pwd>@112.126.77.6:27017/xlinkdemo?directConnection=true&authSource=admin`，`FSM_MONGO_DB=xlinkdemo`
-   - prod：同上换 `xlink`，`FSM_MONGO_DB=xlink`
-3. 追踪库 `TRACKING_SOURCE`：`local`（sqlite）或 `cloud`（复用团队 Turso）。
-4. 安装可选依赖：`pip install pymongo`（cloud 追踪库再装 `libsql-client`）。
-5. 配 `LLM_API_KEY`（兼容 OpenAI 协议）与 `WECOM_WEBHOOK`，去掉 `DRY_RUN`。
-
-### XLink 工单口径（已用 dev 库只读验证）
-
-| 项 | 值 | 说明 |
-|----|----|------|
-| 集合 | `serviceAppointment` | 工单主表 |
-| 已完工 | `status = "403"` | 对应小程序菜单「已完工」(`orderState=done&status=403`) |
-| 有效 | `state = 1` | 排除作废工单（`state=-1`） |
-| 增量时间 | `updateTime` / `createTime` | BSON datetime，**北京本地时间无时区**（引擎已对 UTC Runner 做 +8 校正） |
-| 文本 | `describe`（备注，稀疏）+ `title` | AI 跟进的主要输入；`describe` 多为空时回退轻量满意度回访 |
-| 城市 | `city` | 行政区划码（`110100`=北京），引擎内置常见码→名映射 |
-| 主键 | `_id` | 字符串，用于 `$nin` 去重 |
-
-详见 [`docs/xlink-data.md`](docs/xlink-data.md)。
-
-> 工单状态码并非只有 403，常见还有 104待联系 / 105待预约 / 203待下单 / 206待签约 /
-> 204上门未成交 等。这些系统码与「已完工」口径都固化在 `domain.py`（防腐层）；
-> 若要跟进其它阶段，改 `domain.py` 的 `COMPLETED_STATUS` 与码表即可，引擎其余部分不动。
-
-## GitHub Actions 部署
-
-仓库 Settings 配置：
-
-- **Secrets**：`FSM_DB_URL`、`TURSO_URL`、`TURSO_TOKEN`、`LLM_API_KEY`、`WECOM_WEBHOOK`
-- **Variables**（可选）：`DRY_RUN`、`FSM_SOURCE`、`TRACKING_SOURCE`、`LLM_MODEL` 等
-
-默认 cron 为北京时间 8:00–22:00 每小时一次，也可在 Actions 页手动触发（`workflow_dispatch`）。
-建议先把 `DRY_RUN` 设为 `true` 在线上空跑验证流程，再切真实推送。
-
-## 文件结构
+## Layout
 
 ```
 agent-loop/
-├── agent_cron_engine.py          # 编排：捞取 → 推理 → 追踪 → 推送（只说领域语言）
-├── domain.py                     # 领域防腐层：WorkOrder 模型 + XLink 系统码翻译（唯一耦合点）
-├── requirements.txt
-├── .env.example
-├── docs/                         # 战略 + 设计 + 数据口径
-│   ├── README.md  01-vision  02-architecture  03-roadmap
-│   ├── 04-domain-semantics.md    # 领域语义对齐（Agent 的语义层）
-│   └── xlink-data.md             # XLink 工单数据口径（连接 + 字段，已验证）
-├── .github/workflows/agent_cron.yml
-└── README.md
+├── apps/console/          # Next.js 审批面板（Vercel Root Directory）
+├── packages/aol/          # Python 引擎（pip install -e packages/aol）
+├── contracts/             # 跨语言 SSOT：DDL + Action Spec JSON Schema
+├── docs/public/           # 架构 / 规格公开文档
+├── run_cron.py            # GHA / 本地 cron 入口
+├── scripts/smoke.sh       # 离线回归护栏（mock + heuristic）
+├── Makefile               # 常用命令快捷入口
+└── pnpm-workspace.yaml    # apps/* 工作区
 ```
+
+## Prerequisites
+
+- Python 3.10+，可选 `.venv`
+- Node 20+，`pnpm`（`corepack enable`）
+- Turso 凭证（Console 云库 / GHA cron）：`LIBSQL_URL` + `LIBSQL_AUTH_TOKEN`（Console）或 `TURSO_URL` + `TURSO_TOKEN`（引擎）
+
+## Quick start
+
+```bash
+# Python 引擎（零依赖冒烟）
+make smoke
+# 或
+FSM_SOURCE=mock LLM_PROVIDER=heuristic DRY_RUN=true python run_cron.py
+
+# Console 本地开发（默认 http://localhost:3000，可 PORT=3477）
+pnpm install
+cp apps/console/.env.example apps/console/.env.local   # 填 LIBSQL_URL 等
+make dev
+```
+
+## Common commands
+
+| Command | Description |
+|---------|-------------|
+| `make smoke` | 离线 DRY_RUN 回归，对比 `scripts/smoke_baseline.txt` |
+| `make dev` | 启动 Console（`pnpm --filter console dev`） |
+| `make cron` | 本地跑一轮 cron（读 `.env`） |
+| `make install` | `pip install -e packages/aol` + `pnpm install` |
+
+## Contracts (single source of truth)
+
+| File | Purpose |
+|------|---------|
+| `contracts/aol_schema.sql` | Turso/sqlite 表 DDL（`{{AOL_TABLE_PREFIX}}` 占位） |
+| `contracts/tables.json` | 表名后缀（Python + Console 共用） |
+| `contracts/suggestion.schema.json` | Action Spec v0.2 中文键 JSON Schema |
+
+表名前缀环境变量：`AOL_TABLE_PREFIX`（默认 `aol_`）。
+
+## Deployment
+
+- **GHA cron**：`.github/workflows/agent_cron.yml` → `python run_cron.py`（生产 mongo 只读，默认 `DRY_RUN=true`）
+- **Vercel Console**：Root Directory = `apps/console`，配置 `LIBSQL_URL` / `LIBSQL_AUTH_TOKEN`
+
+## Docs
+
+战略与架构见 [`docs/README.md`](docs/README.md) · [`docs/public/PUB-02-architecture.md`](docs/public/PUB-02-architecture.md)

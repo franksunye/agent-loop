@@ -1,6 +1,6 @@
 // 把本地 sqlite（引擎旧表名）迁移到目标 libSQL/Turso 库（aol_ 前缀新表）。
-// 用法（在 web/ 下）：
-//   SRC_URL=file:../agent_loop_tracking.db \
+// 用法（在 apps/console 下）：
+//   SRC_URL=file:../../agent_loop_tracking.db \
 //   LIBSQL_URL=libsql://... LIBSQL_AUTH_TOKEN=... \
 //   node scripts/migrate-to-turso.mjs
 import { createClient } from "@libsql/client";

@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+
+# Next.js / sharp 的原生构建在本仓库不需要预编译
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver

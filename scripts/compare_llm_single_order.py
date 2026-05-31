@@ -23,8 +23,10 @@ from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote_plus
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+_PKG = ROOT / "packages" / "aol"
+for p in (str(_PKG), str(ROOT)):
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 from dotenv import load_dotenv
 
@@ -46,8 +48,9 @@ def _load_work_order(order_num: str) -> Tuple[Any, Any]:
 
     from pymongo import MongoClient
 
-    import domain
-    from agent_cron_engine import Config, resolve_pilot_housekeepers, _enrich_housekeeper_names
+    from aol import domain
+    from aol.config import Config
+    from aol.integration.fsm_mongo import resolve_pilot_housekeepers, _enrich_housekeeper_names
 
     client = MongoClient(_prod_mongo_url(), serverSelectionTimeoutMS=8000)
     db = client["xlink"]
@@ -78,8 +81,10 @@ def _run_provider(
     deepseek_key: str,
     use_polish: bool = True,
 ) -> Dict[str, Any]:
-    from agent_cron_engine import Config, _llm_follow_up, _SYSTEM_PROMPT
-    import domain
+    from aol.config import Config
+    from aol.runtime.llm import llm_follow_up
+    from aol.runtime.prompts import SYSTEM_PROMPT
+    from aol import domain
 
     cfg = Config()
     cfg.llm_provider = provider
@@ -99,14 +104,14 @@ def _run_provider(
     if not api_key:
         return {"error": f"缺少 {provider} API Key"}
 
-    suggestion, trace = _llm_follow_up(
+    suggestion, trace = llm_follow_up(
         cfg, wo, prov, api_key, base_url, model, json_mode, user_prompt,
         domain.bj_now().isoformat(),
         enrich_ctx=enrich_ctx if use_polish else None,
     )
-    from agent_cron_engine import build_card_markdown, _enrich_output_from_trace
+    from aol.action.card import build_card_markdown, enrich_output_from_trace
 
-    enrich_out = _enrich_output_from_trace(trace)
+    enrich_out = enrich_output_from_trace(trace)
     card = ""
     if suggestion:
         card = build_card_markdown(wo, suggestion, enrich_output=enrich_out)

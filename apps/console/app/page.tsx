@@ -89,7 +89,7 @@ export default async function Page() {
                 <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">
                   暂无建议。先运行引擎填充数据：
                   <code className="mx-1 font-mono text-xs">
-                    FSM_SOURCE=mock LLM_PROVIDER=heuristic AGENT_MODE=steps python agent_cron_engine.py
+                    FSM_SOURCE=mock LLM_PROVIDER=heuristic AGENT_MODE=steps python run_cron.py
                   </code>
                 </TableCell>
               </TableRow>

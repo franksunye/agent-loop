@@ -372,3 +372,22 @@ quote speed reduction / revenue per lead / agent effectiveness score。
 ### 一句话总结
 
 > **FSM tells you what happened. AOL decides and executes what happens next.**
+
+---
+
+## 15. 代码 ↔ AOL 层映射（Monorepo）
+
+> 当前仓库布局（`apps/console` + `packages/aol` + `contracts/`）与 §4 八大组件 / §12 四大原语的对应关系。
+
+| AOL 层 / 原语 | 目录 / 模块 | 职责 |
+|---------------|-------------|------|
+| **Integration（L1/L2）** | `packages/aol/aol/integration/` | XLink Mongo 只读摄取、`serviceAppointment` → `WorkOrder` |
+| **Context Engine（L2）** | `packages/aol/aol/context/` | 工单 enrich（报价/签约/渠道查证） |
+| **Domain ACL** | `packages/aol/aol/domain.py` | 系统码→领域语义翻译（唯一 XLink 耦合点） |
+| **Agent Runtime / Reasoning（L3）** | `packages/aol/aol/runtime/` | LLM / steps / heuristic 推理 + `reasoning_traces` |
+| **Decision Engine（L4）** | `packages/aol/aol/decision/` | 建议 polish、优先级规则 |
+| **Action Engine（L5）** | `packages/aol/aol/action/` | 企微 Markdown 卡片、webhook 推送 |
+| **Tracking / 链接层** | `packages/aol/aol/tracking/` + `contracts/aol_schema.sql` | 幂等水位线、trace、Console 审批回写 |
+| **Human-in-the-loop UI** | `apps/console/` | 读 Turso、展示 v0.2 建议、记录 approve/reject/modify |
+| **跨语言契约 SSOT** | `contracts/` | `aol_schema.sql` · `tables.json` · `suggestion.schema.json` |
+| **Cron 入口** | `run_cron.py` → `packages/aol/aol/app.py` | GHA 每小时增量轮询 |
