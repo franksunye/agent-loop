@@ -305,8 +305,14 @@ def _fetch_from_mongo(cfg: Config, processed_keys: set[str]) -> List[WorkOrder]:
 # ======================================================================
 # 2. 追踪库（幂等水位线 + 可检测性 trace）
 # ======================================================================
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS ai_follow_up_logs (
+# 表名前缀：多项目共用一个 Turso 库时用于清晰区分（默认 aol_ = FS-AOL）。
+# 本地 sqlite 与云端 Turso 保持一致命名。
+TABLE_PREFIX = os.getenv("AOL_TABLE_PREFIX", "aol_")
+TABLE_LOGS = f"{TABLE_PREFIX}follow_up_logs"
+TABLE_TRACES = f"{TABLE_PREFIX}reasoning_traces"
+
+_SCHEMA = f"""
+CREATE TABLE IF NOT EXISTS {TABLE_LOGS} (
     dedupe_key      TEXT PRIMARY KEY,
     work_order_id   TEXT,
     event_type      TEXT,
@@ -320,8 +326,8 @@ CREATE TABLE IF NOT EXISTS ai_follow_up_logs (
 """
 
 # 推理 trace 表：每次 LLM/启发式推理落一条，增强可检测性（observability）
-_SCHEMA_TRACES = """
-CREATE TABLE IF NOT EXISTS reasoning_traces (
+_SCHEMA_TRACES = f"""
+CREATE TABLE IF NOT EXISTS {TABLE_TRACES} (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     work_order_id     TEXT,
     event_type        TEXT,
@@ -370,25 +376,25 @@ class TrackingStore:
 
     @staticmethod
     def _migrate_trace_columns(conn: sqlite3.Connection) -> None:
-        trace_cols = {r[1] for r in conn.execute("PRAGMA table_info(reasoning_traces)")}
+        trace_cols = {r[1] for r in conn.execute(f"PRAGMA table_info({TABLE_TRACES})")}
         if not trace_cols:
             return
         if "event_type" not in trace_cols:
-            conn.execute("ALTER TABLE reasoning_traces ADD COLUMN event_type TEXT")
-        trace_cols = {r[1] for r in conn.execute("PRAGMA table_info(reasoning_traces)")}
+            conn.execute(f"ALTER TABLE {TABLE_TRACES} ADD COLUMN event_type TEXT")
+        trace_cols = {r[1] for r in conn.execute(f"PRAGMA table_info({TABLE_TRACES})")}
         if "steps_json" not in trace_cols:
-            conn.execute("ALTER TABLE reasoning_traces ADD COLUMN steps_json TEXT")
+            conn.execute(f"ALTER TABLE {TABLE_TRACES} ADD COLUMN steps_json TEXT")
 
     @staticmethod
     def _migrate_sqlite_v02(conn: sqlite3.Connection) -> None:
-        cols = {r[1] for r in conn.execute("PRAGMA table_info(ai_follow_up_logs)")}
+        cols = {r[1] for r in conn.execute(f"PRAGMA table_info({TABLE_LOGS})")}
         if not cols:
             return
         if "dedupe_key" in cols:
             return
         conn.execute(
-            """
-            CREATE TABLE ai_follow_up_logs_v2 (
+            f"""
+            CREATE TABLE {TABLE_LOGS}_v2 (
                 dedupe_key TEXT PRIMARY KEY,
                 work_order_id TEXT, event_type TEXT, order_num TEXT, city TEXT,
                 housekeeper_id TEXT, suggestion TEXT, status TEXT, processed_at TEXT
@@ -396,17 +402,17 @@ class TrackingStore:
             """
         )
         conn.execute(
-            """
-            INSERT INTO ai_follow_up_logs_v2
+            f"""
+            INSERT INTO {TABLE_LOGS}_v2
             SELECT
                 'COMPLETED_CARE:' || work_order_id,
                 work_order_id, 'COMPLETED_CARE', order_num, city,
                 '', suggestion, status, processed_at
-            FROM ai_follow_up_logs
+            FROM {TABLE_LOGS}
             """
         )
-        conn.execute("DROP TABLE ai_follow_up_logs")
-        conn.execute("ALTER TABLE ai_follow_up_logs_v2 RENAME TO ai_follow_up_logs")
+        conn.execute(f"DROP TABLE {TABLE_LOGS}")
+        conn.execute(f"ALTER TABLE {TABLE_LOGS}_v2 RENAME TO {TABLE_LOGS}")
 
     def __init__(self, cfg: Config):
         self.cfg = cfg
@@ -432,9 +438,9 @@ class TrackingStore:
 
     def get_processed_dedupe_keys(self) -> set[str]:
         if self._conn is not None:
-            rows = self._conn.execute("SELECT dedupe_key FROM ai_follow_up_logs").fetchall()
+            rows = self._conn.execute(f"SELECT dedupe_key FROM {TABLE_LOGS}").fetchall()
             return {r[0] for r in rows}
-        res = self._turso.execute("SELECT dedupe_key FROM ai_follow_up_logs")
+        res = self._turso.execute(f"SELECT dedupe_key FROM {TABLE_LOGS}")
         return {r[0] for r in res.rows}
 
     def mark_processed(self, wo: WorkOrder, suggestion: FollowUpSuggestion, status: str) -> None:
@@ -445,7 +451,7 @@ class TrackingStore:
             wo.housekeeper_id, payload, status, now,
         )
         sql = (
-            "INSERT OR REPLACE INTO ai_follow_up_logs "
+            f"INSERT OR REPLACE INTO {TABLE_LOGS} "
             "(dedupe_key, work_order_id, event_type, order_num, city, housekeeper_id, "
             "suggestion, status, processed_at) VALUES (?,?,?,?,?,?,?,?,?)"
         )
@@ -463,7 +469,7 @@ class TrackingStore:
             t.total_tokens, t.latency_ms, t.status, t.error, t.steps_json or None, t.created_at,
         )
         sql = (
-            "INSERT INTO reasoning_traces "
+            f"INSERT INTO {TABLE_TRACES} "
             "(work_order_id, event_type, mode, model, prompt_system, prompt_user, raw_response, parsed, "
             "prompt_tokens, completion_tokens, total_tokens, latency_ms, status, error, steps_json, created_at) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
@@ -479,10 +485,12 @@ class TrackingStore:
         if self._conn is None:
             raise RuntimeError("clear_all_data 仅支持 TRACKING_SOURCE=local")
         total = 0
-        for table in ("ai_follow_up_logs", "reasoning_traces"):
+        for table in (TABLE_LOGS, TABLE_TRACES):
             cur = self._conn.execute(f"DELETE FROM {table}")
             total += cur.rowcount
-        self._conn.execute("DELETE FROM sqlite_sequence WHERE name='reasoning_traces'")
+        self._conn.execute(
+            "DELETE FROM sqlite_sequence WHERE name=?", (TABLE_TRACES,)
+        )
         self._conn.commit()
         return total
 

@@ -1,4 +1,4 @@
-import { db, ensureSchema } from "./db";
+import { db, ensureSchema, TABLE_LOGS, TABLE_TRACES, TABLE_OUTCOMES } from "./db";
 
 export type Decision = "approved" | "rejected" | "modified";
 
@@ -101,8 +101,8 @@ function mapOutcome(row: Record<string, unknown>): OutcomeRow {
 
 async function latestOutcomes(): Promise<Map<string, OutcomeRow>> {
   const res = await db.execute(
-    `SELECT o.* FROM suggestion_outcomes o
-     JOIN (SELECT dedupe_key, MAX(id) AS mid FROM suggestion_outcomes GROUP BY dedupe_key) m
+    `SELECT o.* FROM ${TABLE_OUTCOMES} o
+     JOIN (SELECT dedupe_key, MAX(id) AS mid FROM ${TABLE_OUTCOMES} GROUP BY dedupe_key) m
        ON o.id = m.mid`
   );
   const map = new Map<string, OutcomeRow>();
@@ -136,7 +136,7 @@ export async function listSuggestions(): Promise<SuggestionRow[]> {
   await ensureSchema();
   const [res, outcomes] = await Promise.all([
     db.execute(
-      "SELECT * FROM ai_follow_up_logs ORDER BY processed_at DESC LIMIT 500"
+      `SELECT * FROM ${TABLE_LOGS} ORDER BY processed_at DESC LIMIT 500`
     ),
     latestOutcomes(),
   ]);
@@ -151,7 +151,7 @@ export async function getSuggestion(
   await ensureSchema();
   const [res, outcomes] = await Promise.all([
     db.execute({
-      sql: "SELECT * FROM ai_follow_up_logs WHERE dedupe_key = ? LIMIT 1",
+      sql: `SELECT * FROM ${TABLE_LOGS} WHERE dedupe_key = ? LIMIT 1`,
       args: [dedupeKey],
     }),
     latestOutcomes(),
@@ -162,7 +162,7 @@ export async function getSuggestion(
 
 export async function getTrace(workOrderId: string): Promise<TraceRow | null> {
   const res = await db.execute({
-    sql: "SELECT * FROM reasoning_traces WHERE work_order_id = ? ORDER BY id DESC LIMIT 1",
+    sql: `SELECT * FROM ${TABLE_TRACES} WHERE work_order_id = ? ORDER BY id DESC LIMIT 1`,
     args: [workOrderId],
   });
   const row = (res.rows as unknown as Record<string, unknown>[])[0];
@@ -197,7 +197,7 @@ export async function recordOutcome(input: {
 }): Promise<void> {
   await ensureSchema();
   await db.execute({
-    sql: `INSERT INTO suggestion_outcomes
+    sql: `INSERT INTO ${TABLE_OUTCOMES}
       (dedupe_key, work_order_id, decision, note, operator, modified_suggestion, created_at)
       VALUES (?,?,?,?,?,?,?)`,
     args: [
