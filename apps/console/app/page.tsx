@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { listSuggestions, computeStats } from "@/lib/suggestions";
 import {
@@ -45,14 +46,24 @@ function Stat({
   );
 }
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ hk?: string }>;
+}) {
+  const sp = await searchParams;
   const cookieStore = await cookies();
-  const hkFilter = cookieStore.get(HOUSEKEEPER_FILTER_COOKIE)?.value?.trim();
+  const hkFromCookie = cookieStore.get(HOUSEKEEPER_FILTER_COOKIE)?.value?.trim();
+  // URL ?hk= 优先，其次 cookie（便于深链与刷新）
+  const hkFilter = sp.hk?.trim() || hkFromCookie || undefined;
   const pilots = loadPilotHousekeepers();
   const rows = await listSuggestions(
     hkFilter ? { housekeeperId: hkFilter } : undefined
   );
   const stats = computeStats(rows);
+  const filteredLabel = hkFilter
+    ? housekeeperName(pilots, hkFilter)
+    : null;
 
   return (
     <main className="mx-auto w-full max-w-6xl px-6 py-8">
@@ -64,7 +75,9 @@ export default async function Page() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <HousekeeperFilter pilots={pilots} currentId={hkFilter} />
+          <Suspense fallback={null}>
+            <HousekeeperFilter pilots={pilots} currentId={hkFilter} />
+          </Suspense>
           {isAuthEnabled() ? <LogoutButton /> : null}
           <Badge variant="outline" className="font-mono text-xs">
             FS-AOL · v0.2.x
@@ -118,10 +131,16 @@ export default async function Page() {
             {rows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  暂无建议。先运行引擎填充数据：
-                  <code className="mx-1 font-mono text-xs">
-                    FSM_SOURCE=mock LLM_PROVIDER=heuristic AGENT_MODE=steps python run_cron.py
-                  </code>
+                  {filteredLabel
+                    ? `${filteredLabel} 暂无跟进建议（Turso 中无匹配 housekeeper_id 的记录）`
+                    : (
+                      <>
+                        暂无建议。先运行引擎填充数据：
+                        <code className="mx-1 font-mono text-xs">
+                          FSM_SOURCE=mock LLM_PROVIDER=heuristic AGENT_MODE=steps python run_cron.py
+                        </code>
+                      </>
+                    )}
                 </TableCell>
               </TableRow>
             ) : (
