@@ -29,22 +29,37 @@ jobs:
         run: |
           pip install -r requirements.txt
           pip install pymongo            # FSM_SOURCE=mongo（XLink 主路径）
-          # pip install libsql-client    # TRACKING_SOURCE=cloud
+          pip install libsql-client      # TRACKING_SOURCE=cloud（Turso）
 
       - name: Execute Incremental Agent
         env:
-          DRY_RUN: ${{ vars.DRY_RUN || 'false' }}
+          # 安全默认：DRY_RUN=true（企微仅预览不打扰），切真发需显式设 vars.DRY_RUN=false
+          DRY_RUN: ${{ vars.DRY_RUN || 'true' }}
+          # 事件源（默认 dev 库 xlinkdemo，切生产需显式设 vars.FSM_MONGO_DB=xlink）
           FSM_SOURCE: ${{ vars.FSM_SOURCE || 'mongo' }}
           FSM_MONGO_URL: ${{ secrets.FSM_MONGO_URL }}
-          FSM_MONGO_DB: ${{ vars.FSM_MONGO_DB || 'xlink' }}
+          FSM_MONGO_DB: ${{ vars.FSM_MONGO_DB || 'xlinkdemo' }}
           FSM_TIME_FIELD: ${{ vars.FSM_TIME_FIELD || 'updateTime' }}
-          FSM_LOOKBACK_HOURS: ${{ vars.FSM_LOOKBACK_HOURS || '24' }}
+          # v0.2 楔子：待签约停滞（206），仅最近 14 天
+          FSM_EVENT_STATUSES: ${{ vars.FSM_EVENT_STATUSES || '206' }}
+          FSM_MAX_AGE_DAYS: ${{ vars.FSM_MAX_AGE_DAYS || '14' }}
+          FSM_STALE_DAYS: ${{ vars.FSM_STALE_DAYS || '0' }}
+          FSM_BATCH_LIMIT: ${{ vars.FSM_BATCH_LIMIT || '50' }}
+          FSM_PILOT_HOUSEKEEPERS: ${{ vars.FSM_PILOT_HOUSEKEEPERS }}
+          FSM_PILOT_HOUSEKEEPER_IDS: ${{ vars.FSM_PILOT_HOUSEKEEPER_IDS }}
+          # 展示轨：enrich 只读查证 + LLM
+          AGENT_MODE: ${{ vars.AGENT_MODE || 'steps' }}
+          # 追踪库（云端 Turso，aol_ 表名前缀与 Console 共享）
           TRACKING_SOURCE: ${{ vars.TRACKING_SOURCE || 'cloud' }}
+          AOL_TABLE_PREFIX: ${{ vars.AOL_TABLE_PREFIX || 'aol_' }}
           TURSO_URL: ${{ secrets.TURSO_URL }}
           TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+          # LLM：默认混元 Lite（日常）
+          LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'hunyuan' }}
+          HUNYUAN_API_KEY: ${{ secrets.HUNYUAN_API_KEY }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-          LLM_BASE_URL: ${{ vars.LLM_BASE_URL || 'https://api.openai.com/v1' }}
-          LLM_MODEL: ${{ vars.LLM_MODEL || 'gpt-4o-mini' }}
+          LLM_MODEL: ${{ vars.LLM_MODEL || 'hunyuan-lite' }}
           WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
+          WECOM_WEBHOOK_MAP: ${{ vars.WECOM_WEBHOOK_MAP }}
         run: |
           python agent_cron_engine.py
