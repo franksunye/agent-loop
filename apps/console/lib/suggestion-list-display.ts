@@ -4,11 +4,11 @@ import type { PilotHousekeeper } from "./pilot-housekeepers";
 import { eventTypeLabel } from "./labels";
 import { housekeeperName } from "./pilot-housekeepers";
 
-/** 列表四层标签 — 与详情页「跟进方案 / 情况判断 / 处置」及 trace「生成跟进建议」对齐 */
+/** 列表四层短标签（详情页仍用「情况判断 / 跟进方案」等完整名） */
 export const INBOX_LAYER_LABELS = {
   workOrder: "工单",
-  situation: "情况判断",
-  actionPlan: "跟进方案",
+  situation: "情况",
+  actionPlan: "动作",
   disposition: "处置",
 } as const;
 
