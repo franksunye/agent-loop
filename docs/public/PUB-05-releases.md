@@ -14,7 +14,7 @@
 
 - **POC 轨**：`poc-xxx`，headless 可，验技术与效果，**不进 SemVer 版本表**。
 - **产品轨**：`vX.Y`，必须产品化（UI 表面 + UX 流程 + 可感知 KPI），方可打 tag。
-- **当前定位**：现有 `cron + 企微卡片 + DRY_RUN` = **`poc-followup`**；产品轨真正起点是 **`v1.0 Console MVP`**。
+- **当前定位**：`cron + 企微卡片 + DRY_RUN` = **`poc-followup` 引擎**；**`v0.2.x`** = Stage 0 **最小闭环产品**（引擎 + Console：S1+S2+轻量指标）；**`v1.0` tag** = v0.2.x 闭环与试点 KPI 证明后的**产品轨正式版**（见 [PUB-07](PUB-07-product-surface.md) §1）。
 - 企微/短信降级为**通知渠道**（把人拉回 Console 处置），不再是产品本体。
 
 > 详见 [PUB-07-product-surface.md](PUB-07-product-surface.md) §1 两轨、§3 产品化 Definition of Done。
@@ -137,13 +137,29 @@ flowchart LR
 
 ---
 
-## v0.2 · follow-up-wedge（已发布 `v0.2.0`，2026-05-31）
+## v0.2.x · 最小闭环产品（Stage 0 原型）
+
+**阶段目标（v0.2.1 → v0.2.3）**：**产品结构补齐 + 业务闭环跑通**，再进入 **`v0.3.0` 规模化试点**。
+`v0.2.x` = 引擎楔子（`v0.2.0`）+ Console 最小表面（S1 总览 + S2 收件箱/处置 + 轻量闭环指标），仍是 Stage 0，不是产品轨 `v1.0`。
+
+| 小版本 | 主题 | 状态 |
+|--------|------|------|
+| **v0.2.0** | engine wedge（206 + steps + 生产只读 DRY_RUN） | ✅ `v0.2.0` |
+| **v0.2.1** | 产品结构缺口（卡片 → Console、阻塞回填） | 计划 |
+| **v0.2.2** | 业务语义（管家收件箱、已跟进、outcomes 可读） | 计划 |
+| **v0.2.3** | 闭环指标（Console 轻量 KPI + 7 日离 206 率脚本） | 计划 |
+
+> **产品轨 `v1.0` tag 纪律**：在 v0.2.x 闭环被证明且试点 KPI 达标（如 App 内处置率 ≥70%）后再打；见 [PUB-07-product-surface.md](PUB-07-product-surface.md) §1。
+
+---
+
+## v0.2.0 · follow-up-wedge（已发布 `v0.2.0`，2026-05-31）
 
 **目标**：对齐研讨 **Follow-up Action Engine** 切口——在 **wait → follow-up** 主战场产生可审批建议，
 用四位管家（刘沐泽、李小军、刘清瑞、李俊达）**生产只读**数据验证 ROI。
 
 > **封版说明**：`v0.2.0` 锚定楔子里程碑（206 + steps + Action Spec v0.2 + 试点管家 + 生产只读 DRY_RUN）。
-> 同期 main 上已落地 Turso 追踪与 GHA cron（原 v0.3 范围），**不并入本 tag 语义**；`v0.3.0` 另打 tag。
+> 同期 main 上已落地 **Turso 追踪 + GHA cron**（原 `poc-cron` / 旧 v0.3 工程项），**不并入 `v0.2.0` tag 语义**；`v0.3.0` 另打 tag，聚焦**闭环成立后的规模化试点**（真发企微、cron 硬化、run_summary、runbook），而非「第一个 Console」。
 
 **规格 SSOT**：私有文档 `docs/private/PRIV-08-follow-up-wedge-spec.md`（含 **§6 v0.2.0 封版共识**）
 
@@ -184,21 +200,66 @@ flowchart LR
 - [x] **不发群**：仅 `DRY_RUN=true` 审阅卡片/日志（封版按共识接受，非正式 ≥10 卡盲评）
 - [x] ADR-008 与本节共识已写入 changelog（见 [PUB-changelog.md](PUB-changelog.md) `v0.2.0`）
 
-### v0.2.1（紧随 v0.2.0 的小版本）
+### v0.2.1 · 产品结构缺口（计划）
 
-**目标**：不依赖“系统天然有阻塞字段”，先用 Agent 引导管家补齐关键上下文。
+**目标**：补齐「从通知回到 Console 处置」与阻塞上下文采集的**最小产品结构**；不扩业务语义。
 
-**交付范围（最小可用）**：
+**交付范围**：
 
-1. 卡片增加提示：`阻塞信息：待采集`（默认未知）。
-2. 提供最小回填语法：`A价格/B时机/C方案/D无响应 + 一句话`。
-3. 回填结果先写入 `reasoning_traces`（或等价轻量表），不改业务主库。
+| 项 | 说明 |
+|----|------|
+| 卡片深链 | 企微/预览卡片可 **deep link 进 Console** 对应工单/建议 |
+| 阻塞展示 | 卡片默认 **`阻塞信息：待采集`**（未知不伪造） |
+| 阻塞回填 UI | 最小回填：`A价格/B时机/C方案/D无响应 + 一句话`；先落 `reasoning_traces`（或等价轻量表），**不改 XLink 主库** |
 
-**验收**：
+**验收清单（打勾即 tag `v0.2.1`）**：
 
-- [ ] 5 条样本中，管家可在 10 秒内完成回填（可用性验证）。
-- [ ] 回填字段可被下一轮推理读取并在建议中体现。
-- [ ] 无回填时系统保持 `UNKNOWN`，不伪造阻塞结论。
+- [ ] 卡片 → Console 深链：试点管家能从卡片一键打开对应处置页
+- [ ] 卡片含 **`阻塞信息：待采集`**；无回填时为 `UNKNOWN`
+- [ ] 5 条样本：管家 **≤10 秒** 完成回填；字段写入 trace 且下一轮推理可读
+- [ ] 无回填时不伪造阻塞结论
+
+---
+
+### v0.2.2 · 业务语义（计划）
+
+**目标**：让管家在 Console 内完成 **筛选 → 处置 → 采纳信号**，且 outcomes 可供下一轮推理消费。
+
+**交付范围**：
+
+| 项 | 说明 |
+|----|------|
+| 管家收件箱 | Console **按管家过滤**（试点四位 + 待处置状态） |
+| 已跟进语义 | **`已跟进`** 采纳/处置状态入库（轻量 outcomes），对齐 ADR-011 采集纪律 |
+| 推理可读 | outcomes / 阻塞回填可被 **下一轮 cron/推理** 读取并体现在建议中 |
+
+**验收清单（打勾即 tag `v0.2.2`）**：
+
+- [ ] 管家登录/选择后，收件箱仅见本人（或试点池）相关建议
+- [ ] 「已跟进」可在产品内标记且持久化；trace/outcomes 可查询
+- [ ] 至少 3 条样本：标记已跟进后，下一轮建议体现 prior outcome（非重复空催）
+
+---
+
+### v0.2.3 · 闭环指标（计划）
+
+**目标**：在 Console 内**可感知**闭环是否成立；运维侧只读脚本支撑 7 日业务对照。
+
+**交付范围**：
+
+| 项 | 说明 |
+|----|------|
+| Console 轻量 KPI | 如：待处置数、已跟进占比、阻塞采集率（`UNKNOWN` 占比） |
+| 7 日离 206 率 | **只读 Mongo** 脚本（dev/prod 分环境），输出 7 天内离开 206 的粗率，供试点评审 |
+| 文档 | 指标口径写入 05/07；脚本用法一页 |
+
+**验收清单（打勾即 tag `v0.2.3`）**：
+
+- [ ] Console 一屏可见 ≥2 个闭环相关指标（有埋点/可查）
+- [ ] 只读脚本在 dev 或生产只读账号下可跑通并产出可复现数字
+- [ ] v0.2.x 阶段门：业务方认可「可在 Console 完成看→处置→记 outcome」闭环演示
+
+---
 
 ### agent-steps（v0.2.0 主验收轨）
 
@@ -214,39 +275,41 @@ python run_cron.py --reset-tracking
 
 ---
 
-## v0.3 · pilot-cron（建议 1–2 周）
+## v0.3.0 · scale pilot（规模化试点，建议 1–2 周）
 
-**目标**：第一次 **7×24 无人值守试点**——在 v0.2 已验证的 dev 真实数据链路上，
-把追踪迁到 **Turso**，用 GitHub Actions 定时跑，不依赖开发者笔记本。
+**目标**：在 **v0.2.x 最小闭环产品已跑通** 之后，做第一次 **7×24 真发企微 + 运维可运营** 的规模化试点——**不是第一个 Console**（Console 在 v0.2.1–v0.2.3 已落地）。
+
+> **先行工程（已在 main，不打进 v0.2.x tag）**：**Turso 追踪 + GHA cron** 已验证；`v0.3.0` tag 语义 = 在闭环成立后的 **cron 硬化、真发、可观测、runbook**，而非重复交付 Turso/GHA 脚手架。
 
 ### 交付范围
 
 | 原语 | 本版增厚 |
 |------|----------|
-| Event Ingestion | 与 v0.2 相同（仍 dev；prod 只读账号并行申请） |
-| Reasoning | 默认 **hunyuan**；trace 写入 **Turso** |
-| Action Spec | 保持扁平 `FollowUpSuggestion` + 企微 Markdown |
-| Execution | 试点群 webhook；失败重试；**每日上限**（防刷屏） |
+| Event Ingestion | 与 v0.2.0 相同口径（206 + 试点管家）；prod 只读账号按 runbook 切换 |
+| Reasoning | 默认 **hunyuan**；trace 以 **Turso** 为主（与现网一致） |
+| Action Spec | 保持 v0.2 Action Spec + 卡片深链回 Console |
+| Execution | **真发试点群** webhook（非仅 `DRY_RUN`）；失败重试；**每日上限**（防刷屏） |
+| 可观测 | 每轮 **`run_summary`**（处理数/成功/失败/token）；artifact 或表可查 |
 
 ### 工程项
 
-1. GitHub Actions Secrets/Vars 配齐；`TRACKING_SOURCE=cloud`（Turso）。
-2. 新增 `FSM_LOOKBACK_HOURS` / `FSM_BATCH_LIMIT` 生产合理默认值。
-3. 运行报告：每轮结束写 `run_summary` 表或日志 artifact（处理数/成功/失败/token 合计）。
-4. Runbook 一页：`docs/runbooks/pilot-cron.md`（如何手动触发、如何停 cron、如何查 trace）。
-5. 阻塞采集统计：新增每周指标（采集率、平均回填时延、`UNKNOWN` 占比）。
+1. Cron **硬化**：Secrets/Vars、限流、`FSM_LOOKBACK_HOURS` / `FSM_BATCH_LIMIT` 生产默认值；连续运行无人工笔记本依赖。
+2. **`run_summary`**：每轮结束可回答「昨晚处理了多少、失败原因」。
+3. **Runbook**：`docs/runbooks/pilot-cron.md`（手动触发、停 cron、查 trace/Turso、回滚 tag）。
+4. 阻塞/采纳周报：对接 v0.2.3 指标（采集率、已跟进占比、`UNKNOWN` 占比）输出试点周报。
 
 ### 明确不做
 
-- 不改 XLink 业务系统、不做审批 UI。
-- 不接 SOP 向量库、不关联 workflowNode（留给 v0.4）。
+- 不重做 Console MVP（属 v0.2.x）；不升产品轨 `v1.0`。
+- 不改 XLink 业务主库；不接 SOP 向量库（留给 v0.4）。
 
 ### 发布与验证
 
-- **发布**：打 tag `v0.3.0`；Actions `workflow_dispatch` + schedule 仅试点时段（如工作日 9–18）。
+- **发布**：打 tag `v0.3.0`；Actions schedule 仅试点时段（如工作日 9–18）+ `workflow_dispatch`。
 - **验证**：
-  - 连续 3 天 cron 无人工干预，trace 可查，无重复推送。
-  - 业务方在试点群确认「建议可读、无胡言」≥10 条样本评审。
+  - 连续 3 天 cron 无人工干预；trace + `run_summary` 可查；无重复推送。
+  - 试点群真发：业务方「建议可读、无胡言」≥10 条样本评审。
+  - Console 处置与群通知可对照（深链可达、已跟进状态一致）。
 
 ---
 

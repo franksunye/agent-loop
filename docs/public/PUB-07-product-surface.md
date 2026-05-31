@@ -24,10 +24,11 @@
 
 ### 当前定位（重要）
 
-现有 `cron + 企微卡片 + DRY_RUN` = **`poc-followup`**（headless 引擎）。
+现有 `cron + 企微卡片 + DRY_RUN` = **`poc-followup`**（headless 引擎，**`v0.2.0` 已 tag**）。
 
-- 企微卡片是**通知渠道**，不是产品本体；它的职责是把人**拉回 Console 处置**。
-- 产品轨第一个版本（`v1.0 Console MVP`）才是「第一个可见的 AOL」。
+- 企微卡片是**通知渠道**，不是产品本体；职责是把人**拉回 Console 处置**（`v0.2.1` 起卡片 deep link）。
+- **`v0.2.x`（v0.2.1–v0.2.3）** = Stage 0 **最小闭环产品**：引擎 + Console 承载 **S1 总览 + S2 收件箱/处置 + 轻量闭环指标（lite metrics）**；在试点内证明「看 → 处置 → 记 outcome」。
+- **`v1.0` tag（产品轨）** = v0.2.x 闭环与试点 KPI 证明后的**正式产品轨发布**（例如 App 内处置率 ≥70%）；非「第一个 Console」——Console 原型在 v0.2.x 已出现，v1.0 加厚脊柱并满足 [PUB-05](PUB-05-releases.md) 产品轨 OKR。
 
 ---
 
