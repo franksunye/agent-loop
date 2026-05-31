@@ -136,10 +136,12 @@ function ModifyDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline" disabled={disabled}>
-          <Pencil className="h-4 w-4" /> 修改
-        </Button>
+      <DialogTrigger
+        render={
+          <Button size="sm" variant="outline" disabled={disabled} />
+        }
+      >
+        <Pencil className="h-4 w-4" /> 修改
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
@@ -179,10 +181,8 @@ function ModifyDialog({
           </div>
         </div>
         <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline" size="sm">
-              取消
-            </Button>
+          <DialogClose render={<Button variant="outline" size="sm" />}>
+            取消
           </DialogClose>
           <Button size="sm" onClick={handleSave}>
             保存修改

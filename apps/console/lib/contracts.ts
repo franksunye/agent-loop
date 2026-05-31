@@ -1,9 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** Shared contract paths (repo root contracts/). */
+/** Shared contract paths (repo monorepo or Vercel bundle). */
 export function contractsDir(): string {
-  return path.join(process.cwd(), "../../contracts");
+  const candidates = [
+    path.join(process.cwd(), "../../contracts"),
+    path.join(process.cwd(), ".contracts"),
+  ];
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, "tables.json"))) return dir;
+  }
+  throw new Error(
+    "contracts/ not found (expected ../../contracts or .contracts after prebuild)"
+  );
 }
 
 export interface TablesManifest {

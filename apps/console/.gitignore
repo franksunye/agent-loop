@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# synced from ../../contracts at prebuild (Vercel isolated deploy)
+/.contracts
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
