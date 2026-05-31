@@ -59,8 +59,11 @@ class Config:
         default_factory=lambda: os.getenv("AGENT_MODE", "oneshot").lower()
     )
 
-    # 输出
+    # 输出：群机器人 webhook + 可选企业应用消息（可信 IP 环境）
     wecom_webhook: str = field(default_factory=lambda: os.getenv("WECOM_WEBHOOK", ""))
+    wecom_corp_id: str = field(default_factory=lambda: os.getenv("WECOM_CORP_ID", ""))
+    wecom_agent_id: str = field(default_factory=lambda: os.getenv("WECOM_AGENT_ID", ""))
+    wecom_agent_secret: str = field(default_factory=lambda: os.getenv("WECOM_AGENT_SECRET", ""))
     console_base_url: str = field(
         default_factory=lambda: os.getenv("CONSOLE_BASE_URL", "").rstrip("/")
     )

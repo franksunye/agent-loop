@@ -1,4 +1,7 @@
-"""输出层：企业微信群机器人推送（含按管家路由 webhook）。"""
+"""输出层：企业微信群机器人推送（含按管家路由 webhook）。
+
+个人应用消息见 wecom_app.py（需企业可信 IP，cron 默认仍用本模块 webhook）。
+"""
 
 from __future__ import annotations
 
