@@ -409,12 +409,62 @@ MOCK_SA_RECORDS: List[Dict[str, Any]] = [
     },
 ]
 
+# v0.2 本地 E2E：206 待签约 + 四位试点管家（PRIV-08 userId）
+MOCK_FOLLOW_UP_206_RECORDS: List[Dict[str, Any]] = [
+    {
+        "_id": "SA-MOCK-206-001", "orderNum": "GD206-001", "status": "206", "state": 1,
+        "city": "110100", "serviceType": "40", "title": "刘先生待签约",
+        "describe": "已正式报价，客户说再考虑，需跟进签约。",
+        "name": "刘先生", "phone": "138****0001", "updateTime": bj_now().isoformat(),
+        "exts": {"supervisorId": "3439283044423912324"},
+    },
+    {
+        "_id": "SA-MOCK-206-002", "orderNum": "GD206-002", "status": "206", "state": 1,
+        "city": "310100", "serviceType": "11", "title": "陈女士待签约",
+        "describe": "方案已确认，客户在等家人意见。",
+        "name": "陈女士", "phone": "138****0002", "updateTime": bj_now().isoformat(),
+        "exts": {"supervisorId": "7897213176257951252"},
+    },
+    {
+        "_id": "SA-MOCK-206-003", "orderNum": "GD206-003", "status": "206", "state": 1,
+        "city": "110100", "serviceType": "40", "title": "赵先生待签约",
+        "describe": "价格有异议，需解释方案价值。",
+        "name": "赵先生", "phone": "138****0003", "updateTime": bj_now().isoformat(),
+        "exts": {"supervisorId": "2699508216270113110"},
+    },
+    {
+        "_id": "SA-MOCK-206-004", "orderNum": "GD206-004", "status": "206", "state": 1,
+        "city": "440100", "serviceType": "40", "title": "孙女士待签约",
+        "describe": "多次电话未接，需换时段联系。",
+        "name": "孙女士", "phone": "138****0004", "updateTime": bj_now().isoformat(),
+        "exts": {"supervisorId": "8680761575588344623"},
+    },
+]
+
 
 def mock_completed_work_orders(processed_keys: List[str]) -> List[WorkOrder]:
     processed = set(processed_keys)
     out: List[WorkOrder] = []
     for d in MOCK_SA_RECORDS:
         if d.get("status") != COMPLETED_STATUS:
+            continue
+        wo = work_order_from_sa(d)
+        if wo.dedupe_key not in processed:
+            out.append(wo)
+    return out
+
+
+def mock_follow_up_work_orders(
+    processed_keys: List[str],
+    *,
+    event_statuses: List[str],
+) -> List[WorkOrder]:
+    """v0.2 本地 mock：206 待签约 + 试点管家 housekeeper_id。"""
+    processed = set(processed_keys)
+    allowed = set(event_statuses)
+    out: List[WorkOrder] = []
+    for d in MOCK_FOLLOW_UP_206_RECORDS:
+        if str(d.get("status")) not in allowed:
             continue
         wo = work_order_from_sa(d)
         if wo.dedupe_key not in processed:

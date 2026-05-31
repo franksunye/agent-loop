@@ -136,11 +136,11 @@ class TrackingStore:
             turso_url = cfg.turso_url
             if turso_url.startswith("libsql://"):
                 turso_url = "https://" + turso_url[len("libsql://"):]
+            self._conn = None
             self._turso = create_client_sync(url=turso_url, auth_token=cfg.turso_token)
             self._turso.execute(SCHEMA)
             self._turso.execute(SCHEMA_TRACES)
             self._ensure_extended_schema()
-            self._conn = None
         else:
             raise ValueError(f"未知 TRACKING_SOURCE: {cfg.tracking_source}")
 

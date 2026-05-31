@@ -118,6 +118,7 @@ def run(cfg: Optional[Config] = None) -> int:
                         dedupe_key=wo.dedupe_key,
                         console_base_url=cfg.console_base_url,
                         blocker=blocker,
+                        compact=not cfg.dry_run,
                     )
                     sent = send_wecom_card(cfg, card, housekeeper_id=wo.housekeeper_id)
                     status = "sent" if sent else "send_failed"

@@ -18,7 +18,7 @@ declare global {
  * - 生产将 LIBSQL_URL/LIBSQL_AUTH_TOKEN 指向同一个 Turso 库即可，零后端改造。
  */
 function makeClient(): Client {
-  const url = process.env.LIBSQL_URL ?? "file:../../agent_loop_tracking.db";
+  const url = process.env.LIBSQL_URL ?? "file:../../data/agent_loop_tracking.db";
   const authToken = process.env.LIBSQL_AUTH_TOKEN;
   return createClient(authToken ? { url, authToken } : { url });
 }
@@ -38,7 +38,6 @@ export const db: Client = new Proxy({} as Client, {
     return typeof value === "function" ? value.bind(client) : value;
   },
 });
-if (process.env.NODE_ENV !== "production") globalThis.__aolDb = getDb();
 
 /** 表名：后缀来自 contracts/tables.json，前缀来自 AOL_TABLE_PREFIX。 */
 export const TABLE_PREFIX = tablePrefix();

@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { AUTH_COOKIE, isAuthEnabled, verifySessionCookie } from "@/lib/auth";
+import {
+  AUTH_COOKIE,
+  isAuthEnabled,
+  isPublicPath,
+  verifySessionCookie,
+} from "@/lib/auth";
 
 export function middleware(request: NextRequest) {
   if (!isAuthEnabled()) {
@@ -10,7 +15,8 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (
     pathname === "/login" ||
-    pathname.startsWith("/api/auth/")
+    pathname.startsWith("/api/auth/") ||
+    isPublicPath(pathname)
   ) {
     return NextResponse.next();
   }

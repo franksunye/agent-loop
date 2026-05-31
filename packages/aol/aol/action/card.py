@@ -29,10 +29,17 @@ def enrich_output_from_trace(trace: ReasoningTrace) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _truncate(text: str, max_len: int) -> str:
+    text = (text or "").strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 1].rstrip() + "…"
+
+
 def _blocker_line(blocker: Optional[BlockerFeedback]) -> str:
     if blocker and blocker.blocker_type and blocker.blocker_type != "UNKNOWN":
         label = BLOCKER_LABELS.get(blocker.blocker_type, blocker.blocker_type)
-        note = f" — {blocker.note}" if blocker.note else ""
+        note = f" — {_truncate(blocker.note, 24)}" if blocker.note else ""
         return f"> **阻塞信息**：{label}{note}\n"
     return "> **阻塞信息**：待采集\n"
 
@@ -44,15 +51,45 @@ def _console_link(base_url: str, dedupe_key: str) -> str:
     return f"{base_url.rstrip('/')}/suggestions/{path}"
 
 
-def build_card_markdown(
+def _build_compact_card(
     wo: WorkOrder,
     s: FollowUpSuggestion,
     *,
-    enrich_output: Optional[Dict[str, Any]] = None,
-    dedupe_key: Optional[str] = None,
-    console_base_url: str = "",
-    blocker: Optional[BlockerFeedback] = None,
+    dedupe_key: Optional[str],
+    console_base_url: str,
+    blocker: Optional[BlockerFeedback],
 ) -> str:
+    """移动端 action 通知卡：把人拉回 Console，详情在处置页。"""
+    emoji = _PRIORITY_EMOJI.get(s.priority, "⚪")
+    customer = wo.customer_name or "客户"
+    ref = wo.order_num or wo.work_order_id
+    event = domain.event_type_label(wo.event_type)
+    city = wo.city or "—"
+    stale = f" · 停留 {wo.stale_days} 天" if wo.stale_days else ""
+    action = _truncate(s.action_plan.primary_action or s.reason_summary or "查看处置页", 56)
+    link = _console_link(console_base_url, dedupe_key or wo.dedupe_key)
+    footer = f"\n> [打开处置页]({link})\n" if link else ""
+
+    return (
+        f"### {emoji} 跟进行动 · {customer}\n"
+        f"> {event} · {city}{stale}\n"
+        f"> 工单 `{ref}`\n"
+        f"> **现在做什么**：{action}\n"
+        f"{_blocker_line(blocker)}"
+        f"{footer}"
+    )
+
+
+def _build_verbose_card(
+    wo: WorkOrder,
+    s: FollowUpSuggestion,
+    *,
+    enrich_output: Optional[Dict[str, Any]],
+    dedupe_key: Optional[str],
+    console_base_url: str,
+    blocker: Optional[BlockerFeedback],
+) -> str:
+    """完整预览卡：DRY_RUN / 内审用，不用于管家移动端通知。"""
     emoji = _PRIORITY_EMOJI.get(s.priority, "⚪")
     hk = wo.housekeeper_name or "未分配管家"
     stale_line = f"> **停留**：{wo.stale_days} 天\n" if wo.stale_days else ""
@@ -80,7 +117,6 @@ def build_card_markdown(
             + "\n"
         )
 
-    blocker_block = _blocker_line(blocker)
     link = _console_link(console_base_url, dedupe_key or wo.dedupe_key)
     footer = f"\n> [打开 Console 处置]({link})\n" if link else ""
 
@@ -93,7 +129,7 @@ def build_card_markdown(
         f"> **事件**：{domain.event_type_label(wo.event_type)}\n"
         f"{enrich_line}"
         f"{evidence_block}"
-        f"{blocker_block}"
+        f"{_blocker_line(blocker)}"
         f"> **客户**：{wo.customer_name}（{wo.phone}）\n"
         f"> **优先级**：<font color=\"warning\">{s.priority}</font>\n"
         f"> **客户情绪**：{s.customer_sentiment}\n"
@@ -104,4 +140,33 @@ def build_card_markdown(
         f"> **沟通要点**：\n{talk_block}"
         f"{avoid_block}"
         f"{footer}"
+    )
+
+
+def build_card_markdown(
+    wo: WorkOrder,
+    s: FollowUpSuggestion,
+    *,
+    enrich_output: Optional[Dict[str, Any]] = None,
+    dedupe_key: Optional[str] = None,
+    console_base_url: str = "",
+    blocker: Optional[BlockerFeedback] = None,
+    compact: bool = True,
+) -> str:
+    """渲染企微 markdown。默认 compact=True（移动端 action 通知）；内审可 compact=False。"""
+    if compact:
+        return _build_compact_card(
+            wo,
+            s,
+            dedupe_key=dedupe_key,
+            console_base_url=console_base_url,
+            blocker=blocker,
+        )
+    return _build_verbose_card(
+        wo,
+        s,
+        enrich_output=enrich_output,
+        dedupe_key=dedupe_key,
+        console_base_url=console_base_url,
+        blocker=blocker,
     )

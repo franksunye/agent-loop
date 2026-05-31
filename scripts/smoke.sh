@@ -32,6 +32,7 @@ trap 'rm -f "$TMPDB"' EXIT
 # Deterministic offline config. Exported vars win over .env (load_dotenv override=False).
 normalize() {
   FSM_SOURCE=mock \
+  FSM_EVENT_STATUSES= \
   DRY_RUN=true \
   AGENT_MODE=oneshot \
   LLM_PROVIDER=heuristic \

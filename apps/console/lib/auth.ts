@@ -1,6 +1,17 @@
-/** 最简 Console 登录：固定账号（环境变量）+ HttpOnly Cookie。 */
+/**
+ * 最简 Console 登录：固定账号（环境变量）+ HttpOnly Cookie。
+ * 不设 CONSOLE_AUTH_PASSWORD 则全站免登录（本地开发）。
+ * 生产：设密码后列表/运营页需登录；企微深链路径见 isPublicPath。
+ */
 
 export const AUTH_COOKIE = "aol_console_session";
+
+/** 管家从企微点进来的处置页及提交 API，试点阶段免登录。 */
+export function isPublicPath(pathname: string): boolean {
+  if (pathname.startsWith("/suggestions/")) return true;
+  if (pathname === "/api/blockers" || pathname === "/api/outcomes") return true;
+  return false;
+}
 
 export function isAuthEnabled(): boolean {
   return Boolean(process.env.CONSOLE_AUTH_PASSWORD?.trim());
