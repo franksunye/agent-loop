@@ -52,8 +52,9 @@ jobs:
           # 追踪库（云端 Turso，aol_ 表名前缀与 Console 共享）
           TRACKING_SOURCE: ${{ vars.TRACKING_SOURCE || 'cloud' }}
           AOL_TABLE_PREFIX: ${{ vars.AOL_TABLE_PREFIX || 'aol_' }}
-          TURSO_URL: ${{ secrets.TURSO_URL }}
-          TURSO_TOKEN: ${{ secrets.TURSO_TOKEN }}
+          # 复用 sales-reward-hub / stockwise 同名 Turso secrets，映射到引擎 env
+          TURSO_URL: ${{ secrets.TURSO_DB_URL }}
+          TURSO_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           # LLM：默认混元 Lite（日常）
           LLM_PROVIDER: ${{ vars.LLM_PROVIDER || 'hunyuan' }}
           HUNYUAN_API_KEY: ${{ secrets.HUNYUAN_API_KEY }}
