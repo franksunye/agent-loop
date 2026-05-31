@@ -68,9 +68,6 @@ export default async function Page({
           <Suspense fallback={null}>
             <HousekeeperFilter pilots={pilots} currentId={hkFilter} />
           </Suspense>
-          <Suspense fallback={null}>
-            <SuggestionSort current={sortKey} />
-          </Suspense>
           {isAuthEnabled() ? <LogoutButton /> : null}
           <Badge variant="outline" className="font-mono text-xs">
             FS-AOL · v0.2.x
@@ -107,6 +104,12 @@ export default async function Page({
           hint="尚未采集阻塞"
         />
       </section>
+
+      <div className="mb-3">
+        <Suspense fallback={null}>
+          <SuggestionSort current={sortKey} />
+        </Suspense>
+      </div>
 
       <Card className="overflow-hidden p-0">
         <SuggestionInboxTable
