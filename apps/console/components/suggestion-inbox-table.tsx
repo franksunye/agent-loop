@@ -25,7 +25,8 @@ import {
   quoteLine,
   channelPartLine,
   stageBadge,
-  formatProcessedAt,
+  formatPushTime,
+  extractStaleDays,
 } from "@/lib/suggestion-list-display";
 
 export function SuggestionInboxTable({
@@ -43,6 +44,7 @@ export function SuggestionInboxTable({
         <TableRow className="hover:bg-transparent">
           <TableHead className="w-[72px]">优先级</TableHead>
           <TableHead className="min-w-[140px]">工单</TableHead>
+          <TableHead className="hidden w-[72px] sm:table-cell">时间</TableHead>
           <TableHead className="min-w-[180px]">主行动</TableHead>
           <TableHead className="hidden md:table-cell min-w-[160px]">报价</TableHead>
           <TableHead className="hidden lg:table-cell min-w-[120px]">渠道 · 部位</TableHead>
@@ -53,7 +55,7 @@ export function SuggestionInboxTable({
       <TableBody>
         {rows.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+            <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
               {emptyMessage}
             </TableCell>
           </TableRow>
@@ -61,7 +63,8 @@ export function SuggestionInboxTable({
           rows.map((r) => {
             const s = r.suggestion;
             const stage = stageBadge(s);
-            const when = formatProcessedAt(r.processedAt);
+            const pushTime = formatPushTime(r.processedAt);
+            const staleDays = extractStaleDays(s);
             return (
               <TableRow key={r.dedupeKey} className="group align-top">
                 <TableCell className="pt-3">
@@ -90,9 +93,29 @@ export function SuggestionInboxTable({
                       {pilots.length
                         ? ` · ${housekeeperName(pilots, r.housekeeperId)}`
                         : ""}
-                      {when ? ` · ${when}` : ""}
                     </div>
+                    {pushTime ? (
+                      <div className="text-muted-foreground tabular-nums text-[11px] sm:hidden">
+                        {pushTime.date} {pushTime.time}
+                        {staleDays ? ` · 停留 ${staleDays} 天` : ""}
+                      </div>
+                    ) : null}
                   </Link>
+                </TableCell>
+                <TableCell className="hidden pt-3 sm:table-cell">
+                  {pushTime ? (
+                    <div className="tabular-nums leading-tight">
+                      <div className="text-sm">{pushTime.date}</div>
+                      <div className="text-muted-foreground text-xs">{pushTime.time}</div>
+                      {staleDays ? (
+                        <div className="text-muted-foreground mt-1 text-[11px]">
+                          停留 {staleDays} 天
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <span className="text-muted-foreground text-xs">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="pt-3">
                   <Link

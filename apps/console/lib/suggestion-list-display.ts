@@ -31,15 +31,36 @@ export function stageBadge(s: SuggestionDoc): string | null {
   return stage || null;
 }
 
-export function formatProcessedAt(iso: string): string {
-  if (!iso?.trim()) return "";
+export interface PushTimeDisplay {
+  date: string;
+  time: string;
+}
+
+/** 引擎写入的 processed_at → 列表「推送」时间 */
+export function formatPushTime(iso: string): PushTimeDisplay | null {
+  if (!iso?.trim()) return null;
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  if (Number.isNaN(d.getTime())) return null;
+  return {
+    date: d.toLocaleString("zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+    }),
+    time: d.toLocaleString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
+  };
+}
+
+/** 从 LLM 摘要里提取「停留 N 天」（与 WeCom 卡 stale_days 口径对齐） */
+export function extractStaleDays(s: SuggestionDoc): number | null {
+  const haystack = [s.原因摘要, ...(s.优先级依据 ?? [])]
+    .filter(Boolean)
+    .join(" ");
+  const m = haystack.match(/(?:停留|已停留)\s*(\d+)\s*天/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
