@@ -3,13 +3,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const src = path.join(here, "../../../contracts");
-const dst = path.join(here, "../.contracts");
-
-if (!fs.existsSync(src)) {
-  console.error("[sync-contracts] missing:", src);
+const candidates = [
+  path.join(here, "../../../contracts"),
+  path.join(here, "../contracts"),
+  path.join(here, "../../contracts"),
+];
+let src = candidates.find((c) => fs.existsSync(path.join(c, "tables.json")));
+if (!src) {
+  console.error("[sync-contracts] missing contracts in:", candidates.join(", "));
   process.exit(1);
 }
+
+const dst = path.join(here, "../.contracts");
 
 fs.rmSync(dst, { recursive: true, force: true });
 fs.cpSync(src, dst, { recursive: true });

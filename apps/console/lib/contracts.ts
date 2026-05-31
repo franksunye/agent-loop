@@ -5,6 +5,8 @@ import path from "node:path";
 export function contractsDir(): string {
   const candidates = [
     path.join(process.cwd(), "../../contracts"),
+    path.join(process.cwd(), "../contracts"),
+    path.join(process.cwd(), "contracts"),
     path.join(process.cwd(), ".contracts"),
   ];
   for (const dir of candidates) {

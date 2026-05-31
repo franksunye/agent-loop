@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { recordOutcome, type Decision, type SuggestionDoc } from "@/lib/suggestions";
 
+export const dynamic = "force-dynamic";
+
 const VALID: Decision[] = ["approved", "rejected", "modified"];
 
 export async function POST(req: Request) {

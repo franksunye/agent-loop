@@ -14,17 +14,31 @@ declare global {
 
 /**
  * 链接层（见 docs/public/PUB-02-architecture.md）：
- * - 本地开发默认指向引擎写入的 sqlite 文件（data/agent_loop_tracking.db，相对 apps/console 为 ../../data/）。
+ * - 本地开发默认指向引擎写入的 sqlite 文件（仓库根 agent_loop_tracking.db，相对 apps/console 为 ../../）。
  * - 生产将 LIBSQL_URL/LIBSQL_AUTH_TOKEN 指向同一个 Turso 库即可，零后端改造。
  */
 function makeClient(): Client {
-  const url = process.env.LIBSQL_URL ?? "file:../../data/agent_loop_tracking.db";
+  const url = process.env.LIBSQL_URL ?? "file:../../agent_loop_tracking.db";
   const authToken = process.env.LIBSQL_AUTH_TOKEN;
   return createClient(authToken ? { url, authToken } : { url });
 }
 
-export const db: Client = globalThis.__aolDb ?? makeClient();
-if (process.env.NODE_ENV !== "production") globalThis.__aolDb = db;
+function getDb(): Client {
+  if (!globalThis.__aolDb) {
+    globalThis.__aolDb = makeClient();
+  }
+  return globalThis.__aolDb;
+}
+
+/** Lazy client — avoids opening sqlite during `next build` when env is unset. */
+export const db: Client = new Proxy({} as Client, {
+  get(_target, prop, receiver) {
+    const client = getDb();
+    const value = Reflect.get(client, prop, receiver);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});
+if (process.env.NODE_ENV !== "production") globalThis.__aolDb = getDb();
 
 /** 表名：后缀来自 contracts/tables.json，前缀来自 AOL_TABLE_PREFIX。 */
 export const TABLE_PREFIX = tablePrefix();
