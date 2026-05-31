@@ -22,6 +22,9 @@
 | --- | --- | --- | --- |
 | 2026-05-29 | **v0.1.0** 封版 | POC 技术路径：防腐层、`reasoning_traces`、混元/heuristic/deepseek、`DRY_RUN` 企微预览、dev mongo、`--reset-tracking` 清表。 | `v0.1.0` |
 | 2026-05-31 | **v0.2.0** follow-up-wedge | **206 待签约**楔子 + 14 天窗 + 四位管家试点；`AGENT_MODE=steps` + enrich 查证；**Action Spec v0.2**；生产 `xlink` 只读 + `DRY_RUN=true` 审卡片/日志；`dedupe_key` / `reasoning_traces`；GHA 已用 Turso 追踪验证（v0.3 cron 能力同期落地，本 tag 锚定楔子里程碑）。 | `v0.2.0` |
+| 2026-05-31 | **v0.2.1** 产品结构 | 企微卡片 **deep link → Console**；**`阻塞信息：待采集`** + A/B/C/D 回填 UI → `blocker_feedback` 表。 | `v0.2.1` |
+| 2026-05-31 | **v0.2.2** 业务语义 | 管家 **收件箱过滤**；**`已跟进`** 采纳语义 + outcomes 持久化；`followed_up` 可 **reprocess**；下一轮推理 **prior_context**。 | `v0.2.2` |
+| 2026-05-31 | **v0.2.3** 闭环指标 | Console **轻量 KPI**（待处置/已跟进/阻塞采集率）；只读 Mongo **`scripts/advancement_rate.py`** 7 日离 206 率；**v0.2.x 阶段门**达成。 | `v0.2.3` |
 
 ---
 
@@ -53,15 +56,22 @@
 
 ---
 
-## 开发中 / 计划中（v0.2.x → v0.3）
+## v0.2.x 阶段门（已达成 `v0.2.3`，2026-05-31）
 
-> **v0.2.x 阶段门**：产品结构 + 业务闭环跑通（`v0.2.1`–`v0.2.3`）→ 再打 **`v0.3.0` 规模化试点**。细节见 [05-releases.md](./PUB-05-releases.md) § v0.2.x。
+> 产品结构 + 业务闭环已在 Console 跑通；下一步 **`v0.3.0` 规模化试点**。细节见 [05-releases.md](./PUB-05-releases.md) § v0.2.x。
+
+| 日期 | 小版本 | 摘要 | Tag |
+| --- | --- | --- | --- |
+| 2026-05-31 | **v0.2.1** | deep link + 阻塞回填 UI | ✅ `v0.2.1` |
+| 2026-05-31 | **v0.2.2** | 管家收件箱 + 已跟进 + reprocess | ✅ `v0.2.2` |
+| 2026-05-31 | **v0.2.3** | Console KPI + advancement_rate 脚本 | ✅ `v0.2.3` |
+
+---
+
+## 开发中 / 计划中（v0.3+）
 
 | 目标版本 | 主题 | 摘要（一句话） | 依赖 |
 | --- | --- | --- | --- |
-| **v0.2.1** | 产品结构缺口 | 卡片 **deep link → Console**；**`阻塞信息：待采集`** + 阻塞回填 UI（A/B/C/D+一句话 → trace） | `v0.2.0` |
-| **v0.2.2** | 业务语义 | 管家 **收件箱过滤**；**`已跟进`** 采纳语义 + outcomes 持久化；下一轮推理可读 | `v0.2.1` |
-| **v0.2.3** | 闭环指标 | Console **轻量 KPI**（待处置/已跟进/阻塞采集率）；只读 Mongo **7 日离 206 率** 脚本 | `v0.2.2` |
 | **v0.3.0** | scale pilot | **真发企微** + cron 硬化 + **`run_summary`** + runbook；Turso/GHA **已在 main**，本 tag = 闭环后规模化（**非首个 Console**） | `v0.2.3` |
 | **v0.4.0** | context-sop | SOP v1 + 阻塞类型驱动话术分支 | 试点反馈 |
 | **v0.5.0** | proof-metrics | 采纳率、推进率、周报（引擎轨证明包） | `v0.3` 运行数据 |
