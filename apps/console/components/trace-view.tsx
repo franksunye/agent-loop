@@ -21,6 +21,8 @@ export function TraceView({ trace }: { trace: TraceRow | null }) {
   const verdict = String(enrich.business_verdict ?? "");
   const evidence = asStringList(enrich.evidence_lines);
   const hints = asStringList(enrich.business_hints);
+  // enrich 会把 business_hints 追加进 evidence_lines；UI 上事实与提示分开展示，避免重复
+  const factLines = evidence.filter((line) => !line.startsWith("业务提示"));
 
   return (
     <div className="space-y-6">
@@ -71,7 +73,7 @@ export function TraceView({ trace }: { trace: TraceRow | null }) {
       </div>
 
       {/* 系统查证（证据） */}
-      {(verdict || evidence.length > 0 || hints.length > 0) && (
+      {(verdict || factLines.length > 0 || hints.length > 0) && (
         <div>
           <Separator className="mb-4" />
           <h3 className="mb-2 text-sm font-medium">系统查证 · 只读事实</h3>
@@ -79,7 +81,7 @@ export function TraceView({ trace }: { trace: TraceRow | null }) {
             <p className="mb-2 text-sm font-medium text-amber-400">{verdict}</p>
           ) : null}
           <ul className="space-y-1">
-            {evidence.map((line, i) => (
+            {factLines.map((line, i) => (
               <li key={i} className="text-muted-foreground text-sm">
                 · {line}
               </li>
