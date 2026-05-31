@@ -23,6 +23,7 @@ export interface TablesManifest {
   logs: string;
   traces: string;
   outcomes: string;
+  blockers: string;
 }
 
 let _manifest: TablesManifest | undefined;
@@ -47,12 +48,14 @@ export function tableNames(prefix = tablePrefix()): {
   logs: string;
   traces: string;
   outcomes: string;
+  blockers: string;
 } {
   const m = loadTablesManifest();
   return {
     logs: `${prefix}${m.logs}`,
     traces: `${prefix}${m.traces}`,
     outcomes: `${prefix}${m.outcomes}`,
+    blockers: `${prefix}${m.blockers}`,
   };
 }
 
@@ -80,10 +83,19 @@ export function schemaStatements(prefix = tablePrefix()): string[] {
     .map((s) => s + ";");
 }
 
-/** Console-only bootstrap: outcomes table + dedupe index. */
-export function outcomesBootstrapStatements(prefix = tablePrefix()): string[] {
-  const { outcomes } = tableNames(prefix);
+/** Console-only bootstrap: outcomes + blocker tables (DDL 真源 contracts/aol_schema.sql)。 */
+export function trackingBootstrapStatements(prefix = tablePrefix()): string[] {
+  const { outcomes, blockers } = tableNames(prefix);
   return schemaStatements(prefix).filter(
-    (stmt) => stmt.includes(outcomes) || stmt.includes(`idx_${outcomes}`)
+    (stmt) =>
+      stmt.includes(outcomes) ||
+      stmt.includes(`idx_${outcomes}`) ||
+      stmt.includes(blockers) ||
+      stmt.includes(`idx_${blockers}`)
   );
+}
+
+/** @deprecated use trackingBootstrapStatements */
+export function outcomesBootstrapStatements(prefix = tablePrefix()): string[] {
+  return trackingBootstrapStatements(prefix);
 }

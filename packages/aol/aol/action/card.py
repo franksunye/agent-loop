@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import json
 from typing import Any, Dict, Optional
+from urllib.parse import quote
 
 from .. import domain
 from ..domain import FollowUpSuggestion, WorkOrder
+from ..blocker_types import BLOCKER_LABELS
+from ..tracking.store import BlockerFeedback
 from ..tracking.trace import ReasoningTrace
 
 _PRIORITY_EMOJI = {"高": "🔴", "中": "🟡", "低": "🟢", "high": "🔴", "medium": "🟡", "low": "🟢"}
@@ -26,11 +29,29 @@ def enrich_output_from_trace(trace: ReasoningTrace) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _blocker_line(blocker: Optional[BlockerFeedback]) -> str:
+    if blocker and blocker.blocker_type and blocker.blocker_type != "UNKNOWN":
+        label = BLOCKER_LABELS.get(blocker.blocker_type, blocker.blocker_type)
+        note = f" — {blocker.note}" if blocker.note else ""
+        return f"> **阻塞信息**：{label}{note}\n"
+    return "> **阻塞信息**：待采集\n"
+
+
+def _console_link(base_url: str, dedupe_key: str) -> str:
+    if not base_url:
+        return ""
+    path = quote(dedupe_key, safe="")
+    return f"{base_url.rstrip('/')}/suggestions/{path}"
+
+
 def build_card_markdown(
     wo: WorkOrder,
     s: FollowUpSuggestion,
     *,
     enrich_output: Optional[Dict[str, Any]] = None,
+    dedupe_key: Optional[str] = None,
+    console_base_url: str = "",
+    blocker: Optional[BlockerFeedback] = None,
 ) -> str:
     emoji = _PRIORITY_EMOJI.get(s.priority, "⚪")
     hk = wo.housekeeper_name or "未分配管家"
@@ -59,6 +80,10 @@ def build_card_markdown(
             + "\n"
         )
 
+    blocker_block = _blocker_line(blocker)
+    link = _console_link(console_base_url, dedupe_key or wo.dedupe_key)
+    footer = f"\n> [打开 Console 处置]({link})\n" if link else ""
+
     return (
         f"### {emoji} 跟进行动 · {wo.city}\n"
         f"> **管家**：{hk}\n"
@@ -68,6 +93,7 @@ def build_card_markdown(
         f"> **事件**：{domain.event_type_label(wo.event_type)}\n"
         f"{enrich_line}"
         f"{evidence_block}"
+        f"{blocker_block}"
         f"> **客户**：{wo.customer_name}（{wo.phone}）\n"
         f"> **优先级**：<font color=\"warning\">{s.priority}</font>\n"
         f"> **客户情绪**：{s.customer_sentiment}\n"
@@ -77,4 +103,5 @@ def build_card_markdown(
         f"{basis_block}"
         f"> **沟通要点**：\n{talk_block}"
         f"{avoid_block}"
+        f"{footer}"
     )

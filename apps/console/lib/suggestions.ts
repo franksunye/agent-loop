@@ -1,6 +1,7 @@
-import { db, ensureSchema, TABLE_LOGS, TABLE_TRACES, TABLE_OUTCOMES } from "./db";
+import { db, ensureSchema, TABLE_LOGS, TABLE_TRACES, TABLE_OUTCOMES, TABLE_BLOCKERS } from "./db";
+import type { BlockerType } from "./blockers";
 
-export type Decision = "approved" | "rejected" | "modified";
+export type Decision = "approved" | "rejected" | "modified" | "followed_up";
 
 /** Action Spec v0.2 — 键名对齐 contracts/suggestion.schema.json */
 export interface SuggestionDoc {
@@ -35,6 +36,17 @@ export interface OutcomeRow {
   createdAt: string;
 }
 
+export interface BlockerRow {
+  id: number;
+  dedupeKey: string;
+  workOrderId: string;
+  blockerType: BlockerType;
+  note: string;
+  source: string;
+  operator: string;
+  createdAt: string;
+}
+
 export interface SuggestionRow {
   dedupeKey: string;
   workOrderId: string;
@@ -46,6 +58,7 @@ export interface SuggestionRow {
   processedAt: string;
   suggestion: SuggestionDoc;
   outcome: OutcomeRow | null;
+  blocker: BlockerRow | null;
 }
 
 export interface TraceStep {
@@ -100,6 +113,19 @@ function mapOutcome(row: Record<string, unknown>): OutcomeRow {
   };
 }
 
+function mapBlocker(row: Record<string, unknown>): BlockerRow {
+  return {
+    id: Number(row.id),
+    dedupeKey: str(row.dedupe_key),
+    workOrderId: str(row.work_order_id),
+    blockerType: str(row.blocker_type) as BlockerType,
+    note: str(row.note),
+    source: str(row.source),
+    operator: str(row.operator),
+    createdAt: str(row.created_at),
+  };
+}
+
 async function latestOutcomes(): Promise<Map<string, OutcomeRow>> {
   const res = await db.execute(
     `SELECT o.* FROM ${TABLE_OUTCOMES} o
@@ -114,9 +140,24 @@ async function latestOutcomes(): Promise<Map<string, OutcomeRow>> {
   return map;
 }
 
+async function latestBlockers(): Promise<Map<string, BlockerRow>> {
+  const res = await db.execute(
+    `SELECT b.* FROM ${TABLE_BLOCKERS} b
+     JOIN (SELECT dedupe_key, MAX(id) AS mid FROM ${TABLE_BLOCKERS} GROUP BY dedupe_key) m
+       ON b.id = m.mid`
+  );
+  const map = new Map<string, BlockerRow>();
+  for (const row of res.rows as unknown as Record<string, unknown>[]) {
+    const b = mapBlocker(row);
+    map.set(b.dedupeKey, b);
+  }
+  return map;
+}
+
 function mapSuggestion(
   row: Record<string, unknown>,
-  outcomes: Map<string, OutcomeRow>
+  outcomes: Map<string, OutcomeRow>,
+  blockers: Map<string, BlockerRow>
 ): SuggestionRow {
   const dedupeKey = str(row.dedupe_key);
   return {
@@ -130,19 +171,26 @@ function mapSuggestion(
     processedAt: str(row.processed_at),
     suggestion: parseJson<SuggestionDoc>(row.suggestion, {}),
     outcome: outcomes.get(dedupeKey) ?? null,
+    blocker: blockers.get(dedupeKey) ?? null,
   };
 }
 
-export async function listSuggestions(): Promise<SuggestionRow[]> {
+export async function listSuggestions(options?: {
+  housekeeperId?: string;
+}): Promise<SuggestionRow[]> {
   await ensureSchema();
-  const [res, outcomes] = await Promise.all([
-    db.execute(
-      `SELECT * FROM ${TABLE_LOGS} ORDER BY processed_at DESC LIMIT 500`
-    ),
+  const hk = options?.housekeeperId?.trim();
+  const sql = hk
+    ? `SELECT * FROM ${TABLE_LOGS} WHERE housekeeper_id = ? ORDER BY processed_at DESC LIMIT 500`
+    : `SELECT * FROM ${TABLE_LOGS} ORDER BY processed_at DESC LIMIT 500`;
+  const args = hk ? [hk] : [];
+  const [res, outcomes, blockers] = await Promise.all([
+    db.execute({ sql, args }),
     latestOutcomes(),
+    latestBlockers(),
   ]);
   return (res.rows as unknown as Record<string, unknown>[]).map((r) =>
-    mapSuggestion(r, outcomes)
+    mapSuggestion(r, outcomes, blockers)
   );
 }
 
@@ -150,15 +198,53 @@ export async function getSuggestion(
   dedupeKey: string
 ): Promise<SuggestionRow | null> {
   await ensureSchema();
-  const [res, outcomes] = await Promise.all([
+  const [res, outcomes, blockers] = await Promise.all([
     db.execute({
       sql: `SELECT * FROM ${TABLE_LOGS} WHERE dedupe_key = ? LIMIT 1`,
       args: [dedupeKey],
     }),
     latestOutcomes(),
+    latestBlockers(),
   ]);
   const row = (res.rows as unknown as Record<string, unknown>[])[0];
-  return row ? mapSuggestion(row, outcomes) : null;
+  return row ? mapSuggestion(row, outcomes, blockers) : null;
+}
+
+export async function getLatestBlocker(
+  dedupeKey: string
+): Promise<BlockerRow | null> {
+  await ensureSchema();
+  const res = await db.execute({
+    sql: `SELECT * FROM ${TABLE_BLOCKERS} WHERE dedupe_key = ? ORDER BY id DESC LIMIT 1`,
+    args: [dedupeKey],
+  });
+  const row = (res.rows as unknown as Record<string, unknown>[])[0];
+  return row ? mapBlocker(row) : null;
+}
+
+export async function recordBlocker(input: {
+  dedupeKey: string;
+  workOrderId: string;
+  blockerType: BlockerType;
+  note?: string;
+  operator?: string;
+  source?: string;
+}): Promise<void> {
+  await ensureSchema();
+  await db.execute({
+    sql: `INSERT INTO ${TABLE_BLOCKERS}
+      (dedupe_key, work_order_id, blocker_type, note, source, operator, created_at)
+      VALUES (?,?,?,?,?,?,?)`,
+    args: [
+      input.dedupeKey,
+      input.workOrderId,
+      input.blockerType,
+      input.note ?? "",
+      input.source ?? "housekeeper_selected",
+      input.operator ?? "console",
+      new Date().toISOString(),
+    ],
+  });
 }
 
 export async function getTrace(workOrderId: string): Promise<TraceRow | null> {
@@ -222,25 +308,45 @@ export interface DashboardStats {
   approved: number;
   rejected: number;
   modified: number;
+  followedUp: number;
   handledRate: number;
+  adoptionRate: number;
+  exposureCount: number;
+  blockerCaptureRate: number;
+  unknownBlockerRate: number;
   byPriority: Record<string, number>;
 }
+
+const ADOPTED: Decision[] = ["approved", "modified", "followed_up"];
 
 export function computeStats(rows: SuggestionRow[]): DashboardStats {
   const needFollowRows = rows.filter((r) => r.suggestion.需要跟进 !== false);
   let approved = 0;
   let rejected = 0;
   let modified = 0;
+  let followedUp = 0;
+  let adopted = 0;
+  let capturedBlockers = 0;
+  let exposureCount = 0;
   const byPriority: Record<string, number> = {};
   for (const r of needFollowRows) {
     const p = r.suggestion.优先级 || "未定";
     byPriority[p] = (byPriority[p] ?? 0) + 1;
-    if (r.outcome?.decision === "approved") approved += 1;
-    else if (r.outcome?.decision === "rejected") rejected += 1;
-    else if (r.outcome?.decision === "modified") modified += 1;
+    if (r.status === "sent") exposureCount += 1;
+    const d = r.outcome?.decision;
+    if (d === "approved") approved += 1;
+    else if (d === "rejected") rejected += 1;
+    else if (d === "modified") modified += 1;
+    else if (d === "followed_up") followedUp += 1;
+    if (d && ADOPTED.includes(d)) adopted += 1;
+    const bt = r.blocker?.blockerType;
+    if (bt && bt !== "UNKNOWN") capturedBlockers += 1;
   }
-  const handled = approved + rejected + modified;
+  const handled = approved + rejected + modified + followedUp;
   const total = needFollowRows.length;
+  const blockerCaptureRate = total
+    ? Math.round((capturedBlockers / total) * 100)
+    : 0;
   return {
     total: rows.length,
     needFollow: total,
@@ -248,7 +354,12 @@ export function computeStats(rows: SuggestionRow[]): DashboardStats {
     approved,
     rejected,
     modified,
+    followedUp,
     handledRate: total ? Math.round((handled / total) * 100) : 0,
+    adoptionRate: total ? Math.round((adopted / total) * 100) : 0,
+    exposureCount: exposureCount || total,
+    blockerCaptureRate,
+    unknownBlockerRate: total ? 100 - blockerCaptureRate : 0,
     byPriority,
   };
 }

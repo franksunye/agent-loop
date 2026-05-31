@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
-import { recordOutcome, type Decision, type SuggestionDoc } from "@/lib/suggestions";
+import { recordBlocker } from "@/lib/suggestions";
+import { choiceToBlockerType } from "@/lib/blockers";
 
 export const dynamic = "force-dynamic";
-
-const VALID: Decision[] = ["approved", "rejected", "modified", "followed_up"];
 
 export async function POST(req: Request) {
   let body: {
     dedupeKey?: string;
     workOrderId?: string;
-    decision?: Decision;
+    choice?: string;
     note?: string;
     operator?: string;
-    modifiedSuggestion?: SuggestionDoc | null;
   };
   try {
     body = await req.json();
@@ -20,21 +18,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
 
-  if (!body.dedupeKey || !body.decision || !VALID.includes(body.decision)) {
+  if (!body.dedupeKey || !body.choice) {
     return NextResponse.json(
-      { error: "dedupeKey 与合法 decision 必填" },
+      { error: "dedupeKey 与 choice 必填" },
       { status: 400 }
     );
   }
 
+  const blockerType = choiceToBlockerType(body.choice);
+  if (!blockerType) {
+    return NextResponse.json({ error: "choice 须为 A/B/C/D" }, { status: 400 });
+  }
+
   try {
-    await recordOutcome({
+    await recordBlocker({
       dedupeKey: body.dedupeKey,
       workOrderId: body.workOrderId ?? "",
-      decision: body.decision,
+      blockerType,
       note: body.note,
       operator: body.operator,
-      modifiedSuggestion: body.modifiedSuggestion ?? null,
     });
     return NextResponse.json({ ok: true });
   } catch (e) {

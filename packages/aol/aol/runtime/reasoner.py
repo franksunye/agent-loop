@@ -14,14 +14,24 @@ from .heuristic import heuristic_suggestion
 from .llm import llm_follow_up
 
 
-def reason_follow_up(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
+def reason_follow_up(
+    cfg: Config,
+    wo: WorkOrder,
+    *,
+    prior_context: str = "",
+) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
     """对一个工单生成跟进建议，并返回完整推理 trace。"""
     if cfg.agent_mode == "steps":
-        return reason_follow_up_steps(cfg, wo)
-    return reason_follow_up_oneshot(cfg, wo)
+        return reason_follow_up_steps(cfg, wo, prior_context=prior_context)
+    return reason_follow_up_oneshot(cfg, wo, prior_context=prior_context)
 
 
-def reason_follow_up_steps(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
+def reason_follow_up_steps(
+    cfg: Config,
+    wo: WorkOrder,
+    *,
+    prior_context: str = "",
+) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
     """展示轨：enrich（tool）→ LLM，步骤写入 trace.steps_json。"""
     now = bj_now().isoformat()
     steps: List[Dict[str, Any]] = []
@@ -36,7 +46,8 @@ def reason_follow_up_steps(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowU
         "output": enrich_ctx.to_step_dict(),
     })
     enrich_block = enrich_ctx.to_prompt_block()
-    user_prompt = f"工单号: {wo.order_num}\n{wo.followup_text}\n\n{enrich_block}"
+    prior_block = f"\n\n{prior_context}" if prior_context else ""
+    user_prompt = f"工单号: {wo.order_num}\n{wo.followup_text}\n\n{enrich_block}{prior_block}"
 
     provider, api_key, base_url, model, json_mode = cfg.resolved_llm()
     if provider == "heuristic" or not api_key:
@@ -68,7 +79,12 @@ def reason_follow_up_steps(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowU
     return suggestion, trace
 
 
-def reason_follow_up_oneshot(cfg: Config, wo: WorkOrder) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
+def reason_follow_up_oneshot(
+    cfg: Config,
+    wo: WorkOrder,
+    *,
+    prior_context: str = "",
+) -> Tuple[Optional[FollowUpSuggestion], ReasoningTrace]:
     """默认试点：单次 LLM / 启发式。"""
     now = bj_now().isoformat()
     provider, api_key, base_url, model, json_mode = cfg.resolved_llm()
@@ -84,6 +100,8 @@ def reason_follow_up_oneshot(cfg: Config, wo: WorkOrder) -> Tuple[Optional[Follo
         return s, trace
 
     user_prompt = f"工单号: {wo.order_num}\n{wo.followup_text}"
+    if prior_context:
+        user_prompt += f"\n\n{prior_context}"
     return llm_follow_up(
         cfg, wo, provider, api_key, base_url, model, json_mode, user_prompt, now,
         enrich_ctx=None,

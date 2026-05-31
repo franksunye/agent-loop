@@ -3,5 +3,6 @@
   "defaultPrefix": "aol_",
   "logs": "follow_up_logs",
   "traces": "reasoning_traces",
-  "outcomes": "suggestion_outcomes"
+  "outcomes": "suggestion_outcomes",
+  "blockers": "blocker_feedback"
 }

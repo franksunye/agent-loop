@@ -61,6 +61,9 @@ class Config:
 
     # 输出
     wecom_webhook: str = field(default_factory=lambda: os.getenv("WECOM_WEBHOOK", ""))
+    console_base_url: str = field(
+        default_factory=lambda: os.getenv("CONSOLE_BASE_URL", "").rstrip("/")
+    )
 
     def resolved_llm(self) -> tuple[str, str, str, str, bool]:
         """返回 (provider_label, api_key, base_url, model, use_json_mode)。"""

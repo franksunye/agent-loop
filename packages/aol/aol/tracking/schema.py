@@ -26,6 +26,7 @@ def _tables_manifest() -> dict[str, str]:
         "logs": data["logs"],
         "traces": data["traces"],
         "outcomes": data["outcomes"],
+        "blockers": data["blockers"],
     }
 
 
@@ -34,6 +35,7 @@ _SUFFIX = _tables_manifest()
 TABLE_LOGS = f"{TABLE_PREFIX}{_SUFFIX['logs']}"
 TABLE_TRACES = f"{TABLE_PREFIX}{_SUFFIX['traces']}"
 TABLE_OUTCOMES = f"{TABLE_PREFIX}{_SUFFIX['outcomes']}"
+TABLE_BLOCKERS = f"{TABLE_PREFIX}{_SUFFIX['blockers']}"
 
 
 def _render_schema_sql(prefix: str = TABLE_PREFIX) -> str:
@@ -66,6 +68,7 @@ _rendered = _render_schema_sql()
 SCHEMA = _statement_for_table(_rendered, TABLE_LOGS)
 SCHEMA_TRACES = _statement_for_table(_rendered, TABLE_TRACES)
 SCHEMA_OUTCOMES = _statement_for_table(_rendered, TABLE_OUTCOMES)
+SCHEMA_BLOCKERS = _statement_for_table(_rendered, TABLE_BLOCKERS)
 
 # Index on outcomes (Console ensureSchema also runs this)
 _OUTCOMES_INDEX = re.compile(
@@ -75,4 +78,12 @@ _OUTCOMES_INDEX = re.compile(
 SCHEMA_OUTCOMES_INDEX = next(
     (s for s in _split_statements(_rendered) if _OUTCOMES_INDEX.search(s)),
     f"CREATE INDEX IF NOT EXISTS idx_{TABLE_OUTCOMES}_dedupe ON {TABLE_OUTCOMES}(dedupe_key);",
+)
+_BLOCKERS_INDEX = re.compile(
+    rf"CREATE INDEX IF NOT EXISTS idx_{re.escape(TABLE_BLOCKERS)}_dedupe\b",
+    re.IGNORECASE,
+)
+SCHEMA_BLOCKERS_INDEX = next(
+    (s for s in _split_statements(_rendered) if _BLOCKERS_INDEX.search(s)),
+    f"CREATE INDEX IF NOT EXISTS idx_{TABLE_BLOCKERS}_dedupe ON {TABLE_BLOCKERS}(dedupe_key);",
 )

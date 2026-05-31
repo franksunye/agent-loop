@@ -46,3 +46,17 @@ CREATE TABLE IF NOT EXISTS {{AOL_TABLE_PREFIX}}suggestion_outcomes (
 
 CREATE INDEX IF NOT EXISTS idx_{{AOL_TABLE_PREFIX}}suggestion_outcomes_dedupe
     ON {{AOL_TABLE_PREFIX}}suggestion_outcomes(dedupe_key);
+
+CREATE TABLE IF NOT EXISTS {{AOL_TABLE_PREFIX}}blocker_feedback (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    dedupe_key      TEXT NOT NULL,
+    work_order_id   TEXT,
+    blocker_type    TEXT NOT NULL,
+    note            TEXT,
+    source          TEXT NOT NULL DEFAULT 'housekeeper_selected',
+    operator        TEXT,
+    created_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_{{AOL_TABLE_PREFIX}}blocker_feedback_dedupe
+    ON {{AOL_TABLE_PREFIX}}blocker_feedback(dedupe_key);

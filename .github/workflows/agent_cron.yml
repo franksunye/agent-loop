@@ -60,5 +60,6 @@ jobs:
           LLM_MODEL: ${{ vars.LLM_MODEL || 'hunyuan-lite' }}
           WECOM_WEBHOOK: ${{ secrets.WECOM_WEBHOOK }}
           WECOM_WEBHOOK_MAP: ${{ vars.WECOM_WEBHOOK_MAP }}
+          CONSOLE_BASE_URL: ${{ vars.CONSOLE_BASE_URL || 'https://console-sunye.vercel.app' }}
         run: |
           python run_cron.py

@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Check, X, Pencil } from "lucide-react";
+import { Check, X, Pencil, PhoneCall } from "lucide-react";
 import type { Decision, SuggestionDoc } from "@/lib/suggestions";
 
 export function DecisionActions({
@@ -52,6 +52,8 @@ export function DecisionActions({
       toast.success(
         decision === "approved"
           ? "已同意，建议进入执行队列"
+          : decision === "followed_up"
+            ? "已标记跟进，下一轮可再推"
           : decision === "rejected"
             ? "已拒绝"
             : "已保存修改"
@@ -80,6 +82,15 @@ export function DecisionActions({
         className="bg-emerald-600 text-white hover:bg-emerald-700"
       >
         <Check className="h-4 w-4" /> 同意
+      </Button>
+
+      <Button
+        size="sm"
+        variant="secondary"
+        onClick={() => submit("followed_up")}
+        disabled={disabled}
+      >
+        <PhoneCall className="h-4 w-4" /> 已跟进
       </Button>
 
       <ModifyDialog

@@ -1,6 +1,6 @@
 import { createClient, type Client } from "@libsql/client";
 import {
-  outcomesBootstrapStatements,
+  trackingBootstrapStatements,
   tableNames,
   tablePrefix,
 } from "./contracts";
@@ -46,12 +46,13 @@ const _tables = tableNames(TABLE_PREFIX);
 export const TABLE_LOGS = _tables.logs;
 export const TABLE_TRACES = _tables.traces;
 export const TABLE_OUTCOMES = _tables.outcomes;
+export const TABLE_BLOCKERS = _tables.blockers;
 
-/** 幂等建表：审批结果回写表（DDL 真源 contracts/aol_schema.sql）。 */
+/** 幂等建表：outcomes + blocker 回写表（DDL 真源 contracts/aol_schema.sql）。 */
 export function ensureSchema(): Promise<void> {
   if (!globalThis.__aolSchemaReady) {
     globalThis.__aolSchemaReady = (async () => {
-      for (const stmt of outcomesBootstrapStatements(TABLE_PREFIX)) {
+      for (const stmt of trackingBootstrapStatements(TABLE_PREFIX)) {
         await db.execute(stmt);
       }
     })();

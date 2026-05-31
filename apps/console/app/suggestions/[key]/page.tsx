@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DecisionActions } from "@/components/decision-actions";
+import { BlockerFeedbackForm } from "@/components/blocker-feedback";
 import { TraceView } from "@/components/trace-view";
 import {
   eventTypeLabel,
@@ -140,6 +141,15 @@ export default async function SuggestionDetail({
           suggestion={s}
           currentDecision={row.outcome?.decision ?? null}
         />
+
+        <div className="mt-4">
+          <BlockerFeedbackForm
+            dedupeKey={row.dedupeKey}
+            workOrderId={row.workOrderId}
+            currentType={row.blocker?.blockerType ?? null}
+            currentNote={row.blocker?.note ?? null}
+          />
+        </div>
       </Card>
 
       <Tabs defaultValue="plan">

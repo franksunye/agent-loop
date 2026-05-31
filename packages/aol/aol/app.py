@@ -75,7 +75,7 @@ def run(cfg: Optional[Config] = None) -> int:
 
     store = TrackingStore(cfg)
     try:
-        processed_keys = store.get_processed_dedupe_keys()
+        processed_keys = store.effective_processed_keys()
         work_orders = fetch_completed_work_orders(cfg, processed_keys)
 
         if not work_orders:
@@ -86,7 +86,8 @@ def run(cfg: Optional[Config] = None) -> int:
         for wo in work_orders:
             ref = wo.order_num or wo.work_order_id
             try:
-                suggestion, trace = reason_follow_up(cfg, wo)
+                prior_context = store.build_prior_context(wo.dedupe_key)
+                suggestion, trace = reason_follow_up(cfg, wo, prior_context=prior_context)
                 store.log_reasoning_trace(trace)  # 每次推理都落 trace（含失败）
 
                 if suggestion is None:
@@ -109,7 +110,15 @@ def run(cfg: Optional[Config] = None) -> int:
                         if cfg.agent_mode == "steps"
                         else None
                     )
-                    card = build_card_markdown(wo, suggestion, enrich_output=enrich_out)
+                    blocker = store.get_latest_blocker(wo.dedupe_key)
+                    card = build_card_markdown(
+                        wo,
+                        suggestion,
+                        enrich_output=enrich_out,
+                        dedupe_key=wo.dedupe_key,
+                        console_base_url=cfg.console_base_url,
+                        blocker=blocker,
+                    )
                     sent = send_wecom_card(cfg, card, housekeeper_id=wo.housekeeper_id)
                     status = "sent" if sent else "send_failed"
                 else:

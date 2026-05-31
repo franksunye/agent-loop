@@ -23,6 +23,7 @@ export const DECISION_LABELS: Record<string, string> = {
   approved: "已同意",
   rejected: "已拒绝",
   modified: "已修改",
+  followed_up: "已跟进",
 };
 
 export function decisionLabel(decision?: string | null): string {
@@ -52,6 +53,8 @@ export function decisionClasses(decision?: string | null): string {
       return "border-transparent bg-red-500/15 text-red-400";
     case "modified":
       return "border-transparent bg-blue-500/15 text-blue-400";
+    case "followed_up":
+      return "border-transparent bg-violet-500/15 text-violet-400";
     default:
       return "border-transparent bg-amber-500/15 text-amber-400";
   }
