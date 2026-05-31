@@ -70,7 +70,7 @@ flowchart LR
 
 对齐"奠基期原则：边界与命名先立，重实现后置"（见 glossary 文首）。
 
-### 当下（Phase 1 POC）— 立 seam，成本极低
+### 当下（Stage 0 POC）— 立 seam，成本极低
 把已有的系统码隔离进**一个**领域适配器，让引擎其余部分说领域话：
 
 - 把 `Job`（其实是 `serviceAppointment` 的形状）改造/重命名为领域对象 `WorkOrder`，
@@ -81,18 +81,18 @@ flowchart LR
   待跟进、客户、城市名），不再出现 `403`。
 
 > 这一步是**廉价保险**：不增加多少代码，却把"系统耦合"锁进一个文件，
-> 为 Phase 2/3 的通用化铺好路。
+> 为 Stage 2/3 的通用化铺好路。
 
-### Phase 2（白盒内聚）— 共享单一领域真源
+### Stage 2（AOL Core 成型）— 共享单一领域真源
 当 `business_3_0` 的 ERM/BFF 暴露领域读模型（领域 API 或共享包）时：
 
 - agent-loop **改为消费领域对象**（`WorkOrder` + `WorkOrderActivity`），
   而非直连 Mongo 解析原始行——**消除影子真源**，码表只在 ERM 维护一份。
 - Action Spec 引用**领域 id**（`workOrderId` / `accountId` / `serviceResourceId`），
-  天然能被 Phase 2 的 Generative UI 审批卡片消费。
+  天然能被 Stage 2 的 Generative UI 审批卡片消费。
 - Agent 产出的 `WorkOrderActivity`（一条跟进事实）可回流业务系统的活动时间序。
 
-### Phase 3（抽象解耦开源）— 领域词汇成为协议
+### Stage 3（开放生态）— 领域词汇成为协议
 - 领域词汇表 + Action Spec 协议**抽离为开源运行时的核心契约**；
 - XLink 沦为一个**绑定（binding）**：用配置/适配器接入；换成别的 CRM/HR 系统，
   只需换防腐层与 SOP 配置。

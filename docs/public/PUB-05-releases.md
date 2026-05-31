@@ -1,36 +1,63 @@
-# 05 · 版本规划（可发布迭代 → Live）
+# 05 · 版本规划（产品化迭代 → Live）
 
-> **Scope 不变**：Follow-up Action Engine（工单完工 → AI 跟进建议 → 人工采纳 → 执行）。
-> **交付纪律**：每个版本必须 **完整闭环、可独立验证、可发布**（有 tag、有验收清单、有回滚方式），
-> 禁止「半个功能」上线。
+> **Scope 起点**：Follow-up（工单 → AI 跟进建议 → 人工采纳 → 执行），并沿 FS-AOL 愿景扩展。
+> **交付纪律**：每个正式版本必须 **完整闭环、可独立验证、可发布、且产品化**
+> （有 tag、有验收清单、有回滚方式、**有 UI/UE/UX**），禁止「半个功能」或「脚本即版本」。
 >
-> 与 [03-roadmap.md](PUB-03-roadmap.md) 的关系：03 是战略三阶段；本文是 **工程可执行版本切分**。  
-> **版本摘要时间线**（讨论排期用）：[changelog.md](PUB-changelog.md)（对齐 business_3.0 的 `docs/changelog.md`）。
+> 与 [PUB-03-roadmap.md](PUB-03-roadmap.md) 的关系：03 是平台演进 **Stage 0→3**；本文是 **工程可执行版本切分**。  
+> 产品化纪律与产品脊柱（S1–S6）见 [PUB-07-product-surface.md](PUB-07-product-surface.md)。  
+> **版本摘要时间线**：[PUB-changelog.md](PUB-changelog.md)（对齐 business_3.0 的 `docs/changelog.md`）。
 
-## 版本总览
+## 两轨纪律（POC 轨 vs 产品轨）
 
-| 版本 | 代号 | 目标一句话 | 发布形态 | 对应战略阶段 |
-|------|------|------------|----------|--------------|
-| **v0.1** | scaffold | POC 闭环：防腐层 + trace + 混元/启发式 + 企微预览 + dev mongo | **tag `v0.1.0`** | Phase 1 前 |
-| **v0.2** | follow-up-wedge | **Follow-up 主战场**：仅 206 待签约停滞 + 管家路由 | 开发中 | Phase 1 前 |
-| **v0.3** | pilot-cron | GHA 定时 + Turso 云追踪 + 试点群（数据仍 dev→prod） | **首个可对外试点** | Phase 1 黑盒 |
-| **v0.4** | context-sop | 上下文补全 + SOP v1 + 可观测增强 | 试点迭代 | Phase 1 黑盒 |
-| **v0.5** | proof-metrics | 采纳/效果度量 + 周报自动化 | **业务证明包** | Phase 1 收官 |
-| **v1.0** | live-phase1 | 生产 Cron 稳定运行 + Runbook + SLO | **Phase 1 Live** | Phase 1 Live |
-| **v1.1** | action-spec | 强类型 Action Spec + 审批回写 | 内测 API | Phase 2 起步 |
-| **v1.2** | agent-panel | business_3_0 建议面板（只读→审批） | 产品内测 | Phase 2 |
-| **v2.0** | live-phase2 | 审批后确定性执行 + ERM 单一真源 | **Phase 2 Live** | Phase 2 Live |
-| **v3.0** | runtime-oss | 业务配置化 + 核心运行时开源 | 开源发布 | Phase 3 |
+> 我们要的是**通用 / 可开源 / 可云服务**的产品，「项目/脚本」不可作为正式交付。
+
+- **POC 轨**：`poc-xxx`，headless 可，验技术与效果，**不进 SemVer 版本表**。
+- **产品轨**：`vX.Y`，必须产品化（UI 表面 + UX 流程 + 可感知 KPI），方可打 tag。
+- **当前定位**：现有 `cron + 企微卡片 + DRY_RUN` = **`poc-followup`**；产品轨真正起点是 **`v1.0 Console MVP`**。
+- 企微/短信降级为**通知渠道**（把人拉回 Console 处置），不再是产品本体。
+
+> 详见 [PUB-07-product-surface.md](PUB-07-product-surface.md) §1 两轨、§3 产品化 Definition of Done。
+
+## 版本总览（两轨）
+
+> 阶段对应见 [PUB-03-roadmap.md](PUB-03-roadmap.md)：
+> **Stage 0** 闭环系统 · **Stage 1** Agent Runtime · **Stage 2** AOL Core · **Stage 3** 开源生态。
+
+### A. POC / 引擎轨（headless，喂给产品轨，不单独对外发布）
+
+| 标记 | 代号 | 内容 | 状态 | 喂给 |
+|------|------|------|------|------|
+| `poc-followup` | scaffold + wedge | 防腐层 + trace + 混元/启发式 + steps enrich + 企微预览（原 v0.1/v0.2） | v0.1.0 已 tag；v0.2 收尾 | v1.0 |
+| `poc-cron` | pilot-cron | GHA 定时 + Turso 追踪 + 批量稳定性（原 v0.3） | 规划 | v1.0 / v1.2 |
+| `poc-context` | context-sop | 上下文补全 + SOP v1（原 v0.4） | 规划 | v1.3+ |
+
+> 引擎能力仍然重要，但它们是**产品的后端**，不再作为「面向用户的版本」。
+
+### B. 产品轨（每个都产品化：UI + UX + 可感知 KPI）
+
+| 版本 | 代号 | 产品一句话 | 新增产品脊柱 | 对应 Stage |
+|------|------|------------|--------------|------------|
+| **v1.0** | console-mvp | 在产品内**看见并处置** Follow-up 建议 | S1 + S2 | Stage 0→1 |
+| **v1.1** | trust | 让用户**信任**：查证/推理轨可见 | S3 | Stage 1 |
+| **v1.2** | proof | 让管理层**看见 ROI**：产品内看板/周报 | S4 | Stage 1 |
+| **v1.3** | qualification | 复用外壳上线**第二个 Agent** | S1/S2 多 Agent 化 | Stage 1 |
+| **v1.4** | estimate | 报价类 Agent 产品化 | 报价审批卡片 | Stage 1 |
+| **v1.5** | flow | Agent 间编排**可见可干预** | S5 雏形 | Stage 1→2 |
+| **v2.0** | studio | 用户在 UI 内**配置** Agent/规则/SOP | S5 完整 | Stage 2 |
+| **v2.1** | self-host | 可独立部署的**产品**（非脚本） | onboarding UX | Stage 2 |
+| **v2.2** | oss-core | 开源「**带 Console 的可运行产品**」 | 开源版 Console | Stage 3 |
+| **v3.0** | cloud-saas | 托管**多租户**产品 | S6 | Stage 3 |
+| **v3.1** | marketplace | 第三方 Agent **可上架** | 市场页 + 安装流 | Stage 3 |
 
 ```mermaid
 flowchart LR
-    v02["v0.2<br/>Follow-up Wedge"]
-    v03["v0.3<br/>Pilot Cron"]
-    v05["v0.5<br/>业务证明"]
-    v10["v1.0<br/>Phase1 Live"]
-    v20["v2.0<br/>Phase2 Live"]
-    v30["v3.0<br/>开源"]
-    v02 --> v03 --> v05 --> v10 --> v20 --> v30
+    p["poc-followup<br/>(引擎)"] --> v10["v1.0<br/>Console MVP"]
+    v10 --> v12["v1.2<br/>ROI 看板"]
+    v12 --> v15["v1.5<br/>多 Agent + Flow"]
+    v15 --> v20["v2.0<br/>Studio"]
+    v20 --> v22["v2.2<br/>OSS 产品"]
+    v22 --> v30["v3.0<br/>Cloud SaaS"]
 ```
 
 ---
@@ -57,7 +84,37 @@ flowchart LR
 
 ---
 
-## v0.1 · scaffold（已发布 `v0.1.0`）
+## 产品轨 OKR/KPI 总表
+
+> 每个产品版本 = 一个可证伪的 KPI + 一块新增 UI + 明确 Scope 护栏。
+> KPI 阈值（X/N/%）待各版立项时拍定，先固定**指标口径**。
+
+| 版本 | O（目标） | KR / KPI（可感知 / 被使用 / ROI） | 新增 UI | Scope 护栏（明确不做） | 闭环定义 |
+|------|----------|-----------------------------------|---------|------------------------|----------|
+| **v1.0** console-mvp | 让人在产品内看见并处置 Follow-up 建议 | App 内处置率 ≥70%（非靠翻群）；审批时延中位数 < N 分 | S1 总览 + S2 收件箱/审批 | 不做多 Agent、不做配置 UI | 管家在 Web 内完成「看→处置」 |
+| **v1.1** trust | 让用户信任建议 | 查证可见率 100%；「看得懂为什么」满意度达标 | S3 推理/查证轨 | 不改推理算法本身 | 每条建议可溯源到证据 |
+| **v1.2** proof | 让管理层看见 ROI | 1 个核心指标可视化；周报产品内生成且被引用 | S4 ROI 看板 | 不做精确归因 | 1 份管理层认可的看板/周报 |
+| **v1.3** qualification | 第二个 Agent 复用外壳 | UI 组件复用率 ≥80%；线索分级准确率达标 | S1/S2 多 Agent 视图 | 不做跨 Agent 编排 | 第二个 Agent 在同 Console 可用 |
+| **v1.4** estimate | 报价类 Agent 产品化 | 报价时间 −X%；草稿采纳率达标 | 报价审批专用卡片 | 不自动发客户 | 报价草稿在产品内生成+审批 |
+| **v1.5** flow | Agent 间编排可见 | 1 条端到端链路 UI 可视化 + 可干预 | S5 流程视图雏形 | 仅顺序流，不做并行/回滚 | 链路在产品内可看可停 |
+| **v2.0** studio | 用户可自配置 | 非工程人员能在 UI 改一条规则/话术并生效 | S5 完整 Studio | 不开放任意代码执行 | 配置项产品内自助生效 |
+| **v2.1** self-host | 输出可部署产品 | 外部用 mock 数据 1 天内装好并见 Console | 安装/onboarding UX | 不含云计费 | 自托管实例可运行 |
+| **v2.2** oss-core | 开源带 Console 的产品 | 外部可运行实例数；stars/贡献者达阈值 | 开源版 Console | Industry Pack 不开源 | 第三方 48h 跑通同链路 |
+| **v3.0** cloud-saas | 托管多租户产品 | 首批 N 租户；onboarding 转化；隔离+计费跑通 | S6 Tenant Admin | 不做无限定制 | 租户自助开通并使用 |
+| **v3.1** marketplace | 生态扩张 | 上架 Agent 数；调用量 / GMV | 市场页 + 安装流 | 不自营所有 Agent | 第三方 Agent 可上架运行 |
+
+> **双轴自检**（每版立项前）：能力轴推进了哪一格（被动→主动 / 单点→多点 / 内聚→可复用）？
+> 商业轴 KPI 是内部 ROI、外部采用、还是收入？**三者不在同一版本混用。**
+
+---
+
+> **以下为引擎/能力明细（多属 POC/引擎轨）**：描述后端能力、验收与运维硬化。
+> 产品轨的 UI/UX 验收以上文「产品轨 OKR/KPI 总表」与 [PUB-07-product-surface.md](PUB-07-product-surface.md) 为准；
+> 这些引擎能力作为对应产品版本的后端被消费。
+
+---
+
+## v0.1 · scaffold（已发布 `v0.1.0`） — POC/引擎轨
 
 **目标**：证明 **Event → Reasoning → Trace → Outbound → 幂等** 技术路径可跑通，零侵入 XLink。
 
@@ -225,7 +282,8 @@ python agent_cron_engine.py --reset-tracking
 
 ## v0.5 · proof-metrics（建议 2 周）
 
-**目标**：Phase 1 **可量化证明包**——管理层能看懂的数字，不是「感觉 AI 有用」。
+**目标**：Stage 1 **可量化证明包**——管理层能看懂的数字，不是「感觉 AI 有用」。
+这正是 roadmap 强调的「必须先赢一个闭环业务指标」。
 
 ### 交付范围
 
@@ -255,9 +313,11 @@ python agent_cron_engine.py --reset-tracking
 
 ---
 
-## v1.0 · live-phase1（建议 1–2 周硬化）
+## 引擎能力：live 硬化（并入产品轨 v1.x 后端）
 
-**目标**：**Phase 1 正式 Live**——生产 Cron、SLO、告警、权限与合规收口。
+> 原 `v1.0 live-phase1`。现作为产品轨 v1.0–v1.2 的**生产硬化能力**，不再单列为面向用户的版本。
+
+**目标**：生产 Cron、SLO、告警、权限与合规收口（支撑产品 Live）。
 
 ### 交付范围
 
@@ -280,46 +340,42 @@ python agent_cron_engine.py --reset-tracking
 - **发布**：tag `v1.0.0`；生产群（非仅试点）或分城市分群路由。
 - **验证**：
   - 连续 30 天无 P0 事故。
-  - 业务方签字「Phase 1 可常态化运行」。
+  - 业务方签字「Stage 1 可常态化运行」。
 
-**Phase 1 Live 定义**：黑盒、企微为主、人类采纳；**不承诺**产品内审批与自动写 CRM。
+**首个 Live 定义**：黑盒、企微为主、人类采纳；**不承诺**产品内审批与自动写 CRM。
 
 ---
 
-## Phase 2 版本（白盒内聚）
+## 引擎/平台能力：Stage 2（Product → Platform：AOL Core 成型）
 
-### v1.1 · action-spec
+> 以下能力支撑产品轨 v1.1–v2.x；产品形态与 UI 验收以产品轨总表为准。
+
+**Action Spec 协议（支撑 v1.1 trust / v2.0 studio）**
 
 - `FollowUpSuggestion` → 强类型 **Action Spec**（`action_type` / `ui_component` / `payload`）。
-- 审批结果 webhook 回写 `suggestion_outcomes`。
-- JSON Schema 校验 + 版本字段 `spec_version`。
+- 审批结果 webhook 回写 `suggestion_outcomes`；JSON Schema 校验 + `spec_version`。
+- **验证**：mock Spec 可独立 JSON 校验；至少 2 种 `action_type` 端到端。
 
-**验证**：mock Spec 可被独立 JSON 校验；至少 2 种 `action_type` 端到端。
+**确定性执行（支撑 v2.x）**
 
-### v1.2 · agent-panel
-
-- `business_3_0` 嵌入「Agent 建议流」只读列表。
-- 消费 Turso/API；展示 trace 摘要；Approve/Reject 调 v1.1 webhook。
-
-**验证**：管家在 Web 内完成「看建议 → 点同意」不再依赖翻群。
-
-### v2.0 · live-phase2
-
-- 审批后 **确定性执行**（企微发客户草稿 / CRM 字段更新经 Guardrails API）。
+- 审批后确定性执行（企微发客户草稿 / CRM 字段更新经 Guardrails API）。
 - Event Ingestion 改消费 **ERM 领域读模型**，删除直连 Mongo 的影子路径。
 - SOP 向量检索（可选 RAG）上线。
-
-**验证**：单客服跟进吞吐量提升可量化；漏跟率下降。
+- **验证**：单客服跟进吞吐量提升可量化；漏跟率下降。
 
 ---
 
-## Phase 3 版本（抽象开源）
+## 引擎/平台能力：Stage 3（开放生态：开源 + Marketplace）
 
-### v3.0 · runtime-oss
+> 支撑产品轨 v2.2 oss-core / v3.0 cloud-saas / v3.1 marketplace。
+> 分层开源纪律见 [PUB-03-roadmap.md](PUB-03-roadmap.md)：**只开源 AOL Core Runtime**；
+> Industry Packs / Data Intelligence / Hosted Platform 保持商业护城河。
 
-- 防水业务 → `bindings/xlink-wpf.yaml` + SOP 包。
-- 核心包：`agent-loop-runtime`（ingestion / reasoning / spec / execution 四原语）。
-- Generative UI 组件库独立 npm 包。
+- 防水业务 → `bindings/xlink-wpf.yaml` + SOP 包（Industry Pack，不开源）。
+- **AOL Core Runtime（开源）**：`agent-loop-runtime`，含 Event Bus / Agent Runtime /
+  Workflow / 基础 Memory + 四原语（ingestion / reasoning / spec / execution）。
+- Agent SDK（`onEvent → loadContext → decide → act`）与 Generative UI 组件库独立 npm 包。
+- 远期：Agent Marketplace（第三方 Agent 挂载运行）。
 
 **验证**：第三方仓库用 mock binding 48h 内跑通同样链路。
 
@@ -327,13 +383,15 @@ python agent_cron_engine.py --reset-tracking
 
 ## 迭代节奏建议
 
-| 阶段 | 版本 | 日历（参考） | 决策门 |
-|------|------|--------------|--------|
-| 现在 | v0.2 封版 | 本周 | dev 真实数据 + 混元 E2E + trace |
-| 试点 | v0.3 → v0.4 | 第 2–5 周 | GHA cron + 提质（SOP/上下文） |
-| 证明 | v0.5 | 第 6–7 周 | 周报有数字、管理层认可 |
-| Live | v1.0 | 第 8–9 周 | 安全/运维签字 |
-| 产品化 | v1.1 → v2.0 | 第 10–24 周 | 「接进操作界面」需求明确 |
+| Stage | 轨道 / 版本 | 日历（参考） | 决策门 |
+|------|------------|--------------|--------|
+| Stage 0 闭环 | POC `poc-followup` 封版 | 本周 | 生产只读 + steps E2E + trace |
+| Stage 0→1 试点 | POC `poc-cron` → `poc-context` | 第 2–5 周 | GHA cron + 提质（SOP/上下文） |
+| **Stage 0→1 产品起点** | **产品 v1.0 console-mvp** | 第 6–9 周 | **首块可见产品：S1+S2 + 安全/运维签字** |
+| Stage 1 信任/证明 | 产品 v1.1 → v1.2 | 第 10–14 周 | 查证可见 + ROI 看板被引用 |
+| Stage 1→2 多 Agent/编排 | 产品 v1.3 → v1.5 | 第 15–24 周 | 复用率达标 + 编排可见可干预 |
+| Stage 2 平台化 | 产品 v2.0 → v2.1 | 半年+ | UI 内可配置 + 可自托管 |
+| Stage 3 开源/云 | 产品 v2.2 → v3.1 | Year 1+ | 闭环指标成立 + Core 与 Pack 边界清晰 |
 
 **决策门纪律**：未达上一版验收清单，**不启动下一版开发**（可并行写文档与运维准备）。
 
@@ -349,10 +407,12 @@ python agent_cron_engine.py --reset-tracking
 4. **可观测**：能回答「昨晚 3 点为什么没推？」（trace + run_summary）。
 5. **领域纪律**：系统码只出现在 `domain.py`（或 binding 配置）。
 6. **文档**：README + 本文件该版本节 + Runbook 变更。
+7. **产品化达标（仅产品轨 `vX.Y`）**：UI 表面 + UX 流程齐全；用户能在产品内回答该版本对应
+   产品脊柱（S1–S6）的核心问题；可感知 KPI 有埋点。见 [PUB-07-product-surface.md](PUB-07-product-surface.md)。
 
 ---
 
 ## 参见
 
-- [01-vision.md](PUB-01-vision.md) · [02-architecture.md](PUB-02-architecture.md) · [03-roadmap.md](PUB-03-roadmap.md)
-- [PUB-04-domain-semantics.md](PUB-04-domain-semantics.md) · 私有文档 `docs/private/PRIV-xlink-data.md`
+- [PUB-01-vision.md](PUB-01-vision.md) · [PUB-02-architecture.md](PUB-02-architecture.md) · [PUB-03-roadmap.md](PUB-03-roadmap.md)
+- [PUB-04-domain-semantics.md](PUB-04-domain-semantics.md) · [PUB-07-product-surface.md](PUB-07-product-surface.md) · 私有文档 `docs/private/PRIV-xlink-data.md`
