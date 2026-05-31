@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS {{AOL_TABLE_PREFIX}}follow_up_logs (
     housekeeper_id  TEXT,
     suggestion      TEXT,
     status          TEXT,
-    processed_at    TEXT
+    processed_at    TEXT,
+    state_at        TEXT
 );
 
 CREATE TABLE IF NOT EXISTS {{AOL_TABLE_PREFIX}}reasoning_traces (

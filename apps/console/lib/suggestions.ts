@@ -56,6 +56,8 @@ export interface SuggestionRow {
   housekeeperId: string;
   status: string;
   processedAt: string;
+  /** 工单进入当前状态时 updateTime（北京本地），展示时现算滞留天数 */
+  stateAt: string | null;
   suggestion: SuggestionDoc;
   outcome: OutcomeRow | null;
   blocker: BlockerRow | null;
@@ -169,6 +171,7 @@ function mapSuggestion(
     housekeeperId: str(row.housekeeper_id),
     status: str(row.status),
     processedAt: str(row.processed_at),
+    stateAt: str(row.state_at).trim() || null,
     suggestion: parseJson<SuggestionDoc>(row.suggestion, {}),
     outcome: outcomes.get(dedupeKey) ?? null,
     blocker: blockers.get(dedupeKey) ?? null,

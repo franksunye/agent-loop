@@ -14,17 +14,18 @@ import { blockerDisplay } from "@/lib/blockers";
 import {
   primaryAction,
   stageBadge,
-  extractStaleDays,
+  resolveStaleDays,
   workOrderContextLine,
   analysisContextLine,
-  feedbackContextLine,
+  dispositionContextLine,
   formatSuggestionIssuedAt,
+  INBOX_LAYER_LABELS,
 } from "@/lib/suggestion-list-display";
 
 const ROW_GRID =
   "grid grid-cols-[3.25rem_minmax(0,1fr)_5.5rem] items-start gap-x-3 px-3 sm:grid-cols-[3.5rem_minmax(0,1fr)_5.5rem]";
 
-/** 列表行内分层标签：工单 → 分析 → 行动 → 反馈 */
+/** 列表行内分层 — 标签见 INBOX_LAYER_LABELS */
 function LayerRow({
   label,
   children,
@@ -72,13 +73,14 @@ export function SuggestionInboxTable({
         {rows.map((r) => {
           const s = r.suggestion;
           const stage = stageBadge(s);
-          const staleDays = extractStaleDays(s);
+          const staleDays = resolveStaleDays(r);
           const issuedAt = formatSuggestionIssuedAt(r.processedAt);
           const href = `/suggestions/${encodeKey(r.dedupeKey)}`;
           const blockerLabel = blockerDisplay(
             r.blocker?.blockerType,
             r.blocker?.note
           );
+          const L = INBOX_LAYER_LABELS;
 
           return (
             <li key={r.dedupeKey}>
@@ -105,22 +107,19 @@ export function SuggestionInboxTable({
                     ) : null}
                   </div>
 
-                  {/* L1 工单事实 */}
-                  <LayerRow label="工单">
+                  <LayerRow label={L.workOrder}>
                     <span className="text-muted-foreground truncate">
                       {workOrderContextLine(r, pilots, staleDays)}
                     </span>
                   </LayerRow>
 
-                  {/* L2 分析（情况判断） */}
-                  <LayerRow label="分析">
+                  <LayerRow label={L.situation}>
                     <span className="text-muted-foreground truncate">
                       {analysisContextLine(s)}
                     </span>
                   </LayerRow>
 
-                  {/* L3 行动 + 建议工件时间（与工单滞留分离） */}
-                  <LayerRow label="行动" className="text-sm">
+                  <LayerRow label={L.actionPlan} className="text-sm">
                     <span className="line-clamp-2 text-foreground">{primaryAction(s)}</span>
                   </LayerRow>
                   {issuedAt ? (
@@ -129,10 +128,9 @@ export function SuggestionInboxTable({
                     </p>
                   ) : null}
 
-                  {/* L4 反馈 */}
-                  <LayerRow label="反馈">
+                  <LayerRow label={L.disposition}>
                     <span className="text-muted-foreground truncate">
-                      {feedbackContextLine(blockerLabel)}
+                      {dispositionContextLine(blockerLabel)}
                     </span>
                   </LayerRow>
                 </div>

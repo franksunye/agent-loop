@@ -72,6 +72,22 @@ class TrackingStore:
             conn.execute(f"ALTER TABLE {TABLE_TRACES} ADD COLUMN steps_json TEXT")
 
     @staticmethod
+    def _migrate_logs_state_at_sqlite(conn: sqlite3.Connection) -> None:
+        cols = {r[1] for r in conn.execute(f"PRAGMA table_info({TABLE_LOGS})")}
+        if not cols or "state_at" in cols:
+            return
+        conn.execute(f"ALTER TABLE {TABLE_LOGS} ADD COLUMN state_at TEXT")
+
+    @staticmethod
+    def _migrate_logs_state_at_turso(turso: Any) -> None:
+        try:
+            turso.execute(f"ALTER TABLE {TABLE_LOGS} ADD COLUMN state_at TEXT")
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "duplicate column" not in msg and "already exists" not in msg:
+                raise
+
+    @staticmethod
     def _migrate_sqlite_v02(conn: sqlite3.Connection) -> None:
         cols = {r[1] for r in conn.execute(f"PRAGMA table_info({TABLE_LOGS})")}
         if not cols:
@@ -124,6 +140,7 @@ class TrackingStore:
             self._conn.row_factory = sqlite3.Row
             self._conn.execute(SCHEMA)
             self._migrate_sqlite_v02(self._conn)
+            self._migrate_logs_state_at_sqlite(self._conn)
             self._conn.execute(SCHEMA_TRACES)
             self._migrate_trace_columns(self._conn)
             self._ensure_extended_schema()
@@ -139,6 +156,7 @@ class TrackingStore:
             self._conn = None
             self._turso = create_client_sync(url=turso_url, auth_token=cfg.turso_token)
             self._turso.execute(SCHEMA)
+            self._migrate_logs_state_at_turso(self._turso)
             self._turso.execute(SCHEMA_TRACES)
             self._ensure_extended_schema()
         else:
@@ -300,14 +318,15 @@ class TrackingStore:
     def mark_processed(self, wo: WorkOrder, suggestion: FollowUpSuggestion, status: str) -> None:
         now = bj_now().isoformat()
         payload = json.dumps(suggestion.to_dict(), ensure_ascii=False)
+        state_at = (wo.completed_at or "").strip() or None
         row = (
             wo.dedupe_key, wo.work_order_id, wo.event_type, wo.order_num, wo.city,
-            wo.housekeeper_id, payload, status, now,
+            wo.housekeeper_id, payload, status, now, state_at,
         )
         sql = (
             f"INSERT OR REPLACE INTO {TABLE_LOGS} "
             "(dedupe_key, work_order_id, event_type, order_num, city, housekeeper_id, "
-            "suggestion, status, processed_at) VALUES (?,?,?,?,?,?,?,?,?)"
+            "suggestion, status, processed_at, state_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
         )
         if self._conn is not None:
             self._conn.execute(sql, row)
