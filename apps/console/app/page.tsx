@@ -1,30 +1,13 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { listSuggestions, computeStats } from "@/lib/suggestions";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  eventTypeLabel,
-  statusLabel,
-  decisionLabel,
-  priorityClasses,
-  decisionClasses,
-  encodeKey,
-} from "@/lib/labels";
-import { blockerDisplay } from "@/lib/blockers";
 import { isAuthEnabled } from "@/lib/auth";
 import { loadPilotHousekeepers, housekeeperName } from "@/lib/pilot-housekeepers";
 import { LogoutButton } from "@/components/logout-button";
 import { HousekeeperFilter, HOUSEKEEPER_FILTER_COOKIE } from "@/components/housekeeper-filter";
+import { SuggestionInboxTable } from "@/components/suggestion-inbox-table";
 
 export const dynamic = "force-dynamic";
 
@@ -66,7 +49,7 @@ export default async function Page({
     : null;
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-6 py-8">
+    <main className="mx-auto w-full max-w-7xl px-6 py-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Agent Console</h1>
@@ -116,83 +99,22 @@ export default async function Page({
       </section>
 
       <Card className="overflow-hidden p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[88px]">优先级</TableHead>
-              <TableHead>工单 / 事件</TableHead>
-              <TableHead className="hidden md:table-cell">原因摘要</TableHead>
-              <TableHead className="hidden lg:table-cell w-[120px]">阻塞</TableHead>
-              <TableHead className="w-[96px]">状态</TableHead>
-              <TableHead className="w-[96px]">处置</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
-                  {filteredLabel
-                    ? `${filteredLabel} 暂无跟进建议（Turso 中无匹配 housekeeper_id 的记录）`
-                    : (
-                      <>
-                        暂无建议。先运行引擎填充数据：
-                        <code className="mx-1 font-mono text-xs">
-                          FSM_SOURCE=mock LLM_PROVIDER=heuristic AGENT_MODE=steps python run_cron.py
-                        </code>
-                      </>
-                    )}
-                </TableCell>
-              </TableRow>
+        <SuggestionInboxTable
+          rows={rows}
+          pilots={pilots}
+          emptyMessage={
+            filteredLabel ? (
+              `${filteredLabel} 暂无跟进建议（Turso 中无匹配 housekeeper_id 的记录）`
             ) : (
-              rows.map((r) => {
-                const s = r.suggestion;
-                return (
-                  <TableRow key={r.dedupeKey} className="group">
-                    <TableCell>
-                      <Badge className={priorityClasses(s.优先级)}>
-                        {s.优先级 || "—"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Link
-                        href={`/suggestions/${encodeKey(r.dedupeKey)}`}
-                        className="block"
-                      >
-                        <div className="font-mono text-sm group-hover:underline">
-                          {r.orderNum || r.workOrderId}
-                        </div>
-                        <div className="text-muted-foreground text-xs">
-                          {eventTypeLabel(r.eventType)} · {r.city || "—"}
-                          {pilots.length ? ` · ${housekeeperName(pilots, r.housekeeperId)}` : ""}
-                        </div>
-                      </Link>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <span className="text-muted-foreground line-clamp-2 text-sm">
-                        {s.原因摘要 || "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      <span className="text-muted-foreground text-xs">
-                        {blockerDisplay(r.blocker?.blockerType, r.blocker?.note)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-muted-foreground text-xs">
-                        {statusLabel(r.status)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge className={decisionClasses(r.outcome?.decision)}>
-                        {decisionLabel(r.outcome?.decision)}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
+              <>
+                暂无建议。先运行引擎填充数据：
+                <code className="mx-1 font-mono text-xs">
+                  FSM_SOURCE=mock LLM_PROVIDER=heuristic AGENT_MODE=steps python run_cron.py
+                </code>
+              </>
+            )
+          }
+        />
       </Card>
     </main>
   );
