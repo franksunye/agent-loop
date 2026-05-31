@@ -54,6 +54,20 @@ export function formatPushTime(iso: string): PushTimeDisplay | null {
   };
 }
 
+/** 列表第二行：报价 · 渠道 · 阻塞（单行截断，避免加列） */
+export function secondaryMetaLine(
+  s: SuggestionDoc,
+  blockerLabel: string
+): string {
+  const parts: string[] = [];
+  const quote = quoteLine(s);
+  if (quote !== "—") parts.push(quote);
+  const channel = channelPartLine(s);
+  if (channel !== "—") parts.push(channel);
+  parts.push(`阻塞·${blockerLabel}`);
+  return parts.join(" · ");
+}
+
 /** 从 LLM 摘要里提取「停留 N 天」（与 WeCom 卡 stale_days 口径对齐） */
 export function extractStaleDays(s: SuggestionDoc): number | null {
   const haystack = [s.原因摘要, ...(s.优先级依据 ?? [])]

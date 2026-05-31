@@ -1,13 +1,5 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import type { SuggestionRow } from "@/lib/suggestions";
 import type { PilotHousekeeper } from "@/lib/pilot-housekeepers";
@@ -22,12 +14,28 @@ import { blockerDisplay } from "@/lib/blockers";
 import { housekeeperName } from "@/lib/pilot-housekeepers";
 import {
   primaryAction,
-  quoteLine,
-  channelPartLine,
   stageBadge,
   formatPushTime,
   extractStaleDays,
+  secondaryMetaLine,
 } from "@/lib/suggestion-list-display";
+
+const ROW_GRID =
+  "grid grid-cols-[3.25rem_minmax(0,1fr)_5.5rem] items-start gap-x-3 px-3 sm:grid-cols-[3.5rem_minmax(0,1fr)_5.5rem]";
+
+function orderContextLine(
+  r: SuggestionRow,
+  pilots: PilotHousekeeper[],
+  pushTime: ReturnType<typeof formatPushTime>,
+  staleDays: number | null
+): string {
+  const parts = [eventTypeLabel(r.eventType)];
+  if (r.city) parts.push(r.city);
+  if (pilots.length) parts.push(housekeeperName(pilots, r.housekeeperId));
+  if (pushTime) parts.push(`${pushTime.date} ${pushTime.time}`);
+  if (staleDays) parts.push(`停留 ${staleDays} 天`);
+  return parts.join(" · ");
+}
 
 export function SuggestionInboxTable({
   rows,
@@ -38,119 +46,77 @@ export function SuggestionInboxTable({
   pilots: PilotHousekeeper[];
   emptyMessage: ReactNode;
 }) {
+  if (rows.length === 0) {
+    return (
+      <div className="flex h-32 items-center justify-center px-4 text-center text-muted-foreground">
+        {emptyMessage}
+      </div>
+    );
+  }
+
   return (
-    <Table>
-      <TableHeader>
-        <TableRow className="hover:bg-transparent">
-          <TableHead className="w-[72px]">优先级</TableHead>
-          <TableHead className="min-w-[140px]">工单</TableHead>
-          <TableHead className="hidden w-[72px] sm:table-cell">时间</TableHead>
-          <TableHead className="min-w-[180px]">主行动</TableHead>
-          <TableHead className="hidden md:table-cell min-w-[160px]">报价</TableHead>
-          <TableHead className="hidden lg:table-cell min-w-[120px]">渠道 · 部位</TableHead>
-          <TableHead className="hidden sm:table-cell w-[100px]">阻塞</TableHead>
-          <TableHead className="w-[88px] text-right">处置</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.length === 0 ? (
-          <TableRow>
-            <TableCell colSpan={8} className="h-32 text-center text-muted-foreground">
-              {emptyMessage}
-            </TableCell>
-          </TableRow>
-        ) : (
-          rows.map((r) => {
-            const s = r.suggestion;
-            const stage = stageBadge(s);
-            const pushTime = formatPushTime(r.processedAt);
-            const staleDays = extractStaleDays(s);
-            return (
-              <TableRow key={r.dedupeKey} className="group align-top">
-                <TableCell className="pt-3">
+    <div className="w-full">
+      <div
+        className={`${ROW_GRID} text-muted-foreground hidden border-b py-2 text-xs font-medium sm:grid`}
+      >
+        <div>优先级</div>
+        <div>工单 · 跟进</div>
+        <div className="text-right">处置</div>
+      </div>
+      <ul className="divide-y">
+        {rows.map((r) => {
+          const s = r.suggestion;
+          const stage = stageBadge(s);
+          const pushTime = formatPushTime(r.processedAt);
+          const staleDays = extractStaleDays(s);
+          const href = `/suggestions/${encodeKey(r.dedupeKey)}`;
+          const meta = secondaryMetaLine(
+            s,
+            blockerDisplay(r.blocker?.blockerType, r.blocker?.note)
+          );
+
+          return (
+            <li key={r.dedupeKey}>
+              <Link
+                href={href}
+                className={`${ROW_GRID} group block py-3 transition-colors hover:bg-muted/50`}
+              >
+                <div className="pt-0.5">
                   <Badge className={priorityClasses(s.优先级)}>
                     {s.优先级 || "—"}
                   </Badge>
-                </TableCell>
-                <TableCell className="pt-3">
-                  <Link
-                    href={`/suggestions/${encodeKey(r.dedupeKey)}`}
-                    className="block space-y-1"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-sm font-medium group-hover:underline">
-                        {r.orderNum || r.workOrderId}
-                      </span>
-                      {stage ? (
-                        <Badge variant="outline" className="text-[10px] font-normal">
-                          {stage}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <div className="text-muted-foreground text-xs leading-relaxed">
-                      {eventTypeLabel(r.eventType)}
-                      {r.city ? ` · ${r.city}` : ""}
-                      {pilots.length
-                        ? ` · ${housekeeperName(pilots, r.housekeeperId)}`
-                        : ""}
-                    </div>
-                    {pushTime ? (
-                      <div className="text-muted-foreground tabular-nums text-[11px] sm:hidden">
-                        {pushTime.date} {pushTime.time}
-                        {staleDays ? ` · 停留 ${staleDays} 天` : ""}
-                      </div>
+                </div>
+
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-mono text-sm font-medium group-hover:underline">
+                      {r.orderNum || r.workOrderId}
+                    </span>
+                    {stage ? (
+                      <Badge variant="outline" className="text-[10px] font-normal">
+                        {stage}
+                      </Badge>
                     ) : null}
-                  </Link>
-                </TableCell>
-                <TableCell className="hidden pt-3 sm:table-cell">
-                  {pushTime ? (
-                    <div className="tabular-nums leading-tight">
-                      <div className="text-sm">{pushTime.date}</div>
-                      <div className="text-muted-foreground text-xs">{pushTime.time}</div>
-                      {staleDays ? (
-                        <div className="text-muted-foreground mt-1 text-[11px]">
-                          停留 {staleDays} 天
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <span className="text-muted-foreground text-xs">—</span>
-                  )}
-                </TableCell>
-                <TableCell className="pt-3">
-                  <Link
-                    href={`/suggestions/${encodeKey(r.dedupeKey)}`}
-                    className="text-sm leading-snug line-clamp-2 group-hover:underline"
-                  >
+                  </div>
+                  <p className="text-muted-foreground truncate text-xs">
+                    {orderContextLine(r, pilots, pushTime, staleDays)}
+                  </p>
+                  <p className="text-sm leading-snug line-clamp-2">
                     {primaryAction(s)}
-                  </Link>
-                  <p className="text-muted-foreground mt-1 line-clamp-1 text-xs md:hidden">
-                    {quoteLine(s)}
                   </p>
-                </TableCell>
-                <TableCell className="hidden pt-3 md:table-cell">
-                  <p className="text-sm leading-snug line-clamp-2">{quoteLine(s)}</p>
-                </TableCell>
-                <TableCell className="hidden pt-3 lg:table-cell">
-                  <p className="text-muted-foreground text-sm leading-snug line-clamp-2">
-                    {channelPartLine(s)}
-                  </p>
-                </TableCell>
-                <TableCell className="hidden pt-3 sm:table-cell">
-                  <span className="text-muted-foreground text-xs leading-snug line-clamp-2">
-                    {blockerDisplay(r.blocker?.blockerType, r.blocker?.note)}
-                  </span>
-                </TableCell>
-                <TableCell className="pt-3 text-right">
+                  <p className="text-muted-foreground truncate text-xs">{meta}</p>
+                </div>
+
+                <div className="flex justify-end pt-0.5">
                   <Badge className={decisionClasses(r.outcome?.decision)}>
                     {decisionLabel(r.outcome?.decision)}
                   </Badge>
-                </TableCell>
-              </TableRow>
-            );
-          })
-        )}
-      </TableBody>
-    </Table>
+                </div>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
