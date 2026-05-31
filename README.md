@@ -7,6 +7,7 @@ Field Service Agent Operating Layer — Python 跟进引擎 + Next.js 审批 Con
 ```
 agent-loop/
 ├── apps/console/          # Next.js 审批面板（Vercel Root Directory）
+├── data/                  # 本地 sqlite 追踪库（gitignore *.db；见 data/.gitkeep）
 ├── packages/aol/          # Python 引擎（pip install -e packages/aol）
 ├── contracts/             # 跨语言 SSOT：DDL + Action Spec JSON Schema
 ├── docs/public/           # 架构 / 规格公开文档

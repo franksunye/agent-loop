@@ -40,7 +40,7 @@ class Config:
         default_factory=lambda: os.getenv("TRACKING_SOURCE", "local").lower()
     )
     tracking_local_path: str = field(
-        default_factory=lambda: os.getenv("TRACKING_LOCAL_PATH", "agent_loop_tracking.db")
+        default_factory=lambda: os.getenv("TRACKING_LOCAL_PATH", "data/agent_loop_tracking.db")
     )
     turso_url: str = field(default_factory=lambda: os.getenv("TURSO_URL", ""))
     turso_token: str = field(default_factory=lambda: os.getenv("TURSO_TOKEN", ""))

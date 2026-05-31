@@ -9,7 +9,8 @@ __pycache__/
 .venv/
 venv/
 
-# 本地追踪库（POC 默认用本地 sqlite）
+# 本地追踪库（默认 data/agent_loop_tracking.db；保留 data/.gitkeep）
+data/*.db
 *.db
 *.sqlite
 *.sqlite3

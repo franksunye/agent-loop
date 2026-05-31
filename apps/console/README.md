@@ -4,7 +4,7 @@
 Python 引擎在 GitHub Actions 里写入追踪库，本应用读取同一个库，让人**在产品内看见并处置**跟进建议。
 
 - **栈**：Next.js (App Router) + Tailwind v4 + shadcn/ui + `@libsql/client`
-- **链接层**：libSQL/Turso。本地默认读仓库根 `agent_loop_tracking.db`（相对路径 `../../`）；
+- **链接层**：libSQL/Turso。本地默认读 `data/agent_loop_tracking.db`（相对路径 `../../data/`）；
   生产把 `LIBSQL_URL` 指向同一个 Turso 库即可，**零后端改造**。
 - 表名 / DDL 真源：`../../contracts/aol_schema.sql`
 - 设计与纪律见 [`../../docs/public/PUB-07-product-surface.md`](../../docs/public/PUB-07-product-surface.md)。

@@ -14,11 +14,11 @@ declare global {
 
 /**
  * 链接层（见 docs/public/PUB-02-architecture.md）：
- * - 本地开发默认指向引擎写入的 sqlite 文件（仓库根 agent_loop_tracking.db，相对 apps/console 为 ../../）。
+ * - 本地开发默认指向引擎写入的 sqlite 文件（data/agent_loop_tracking.db，相对 apps/console 为 ../../data/）。
  * - 生产将 LIBSQL_URL/LIBSQL_AUTH_TOKEN 指向同一个 Turso 库即可，零后端改造。
  */
 function makeClient(): Client {
-  const url = process.env.LIBSQL_URL ?? "file:../../agent_loop_tracking.db";
+  const url = process.env.LIBSQL_URL ?? "file:../../data/agent_loop_tracking.db";
   const authToken = process.env.LIBSQL_AUTH_TOKEN;
   return createClient(authToken ? { url, authToken } : { url });
 }
