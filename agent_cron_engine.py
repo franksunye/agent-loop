@@ -429,7 +429,12 @@ class TrackingStore:
         elif cfg.tracking_source == "cloud":
             from libsql_client import create_client_sync  # 懒加载
 
-            self._turso = create_client_sync(url=cfg.turso_url, auth_token=cfg.turso_token)
+            # Python libsql_client 对 libsql:// 会走 wss 握手，Turso 返回 400 并挂起线程；
+            # 改用 https:// 走 HTTP 传输（与 JS @libsql/client 的默认行为一致，稳定）。
+            turso_url = cfg.turso_url
+            if turso_url.startswith("libsql://"):
+                turso_url = "https://" + turso_url[len("libsql://"):]
+            self._turso = create_client_sync(url=turso_url, auth_token=cfg.turso_token)
             self._turso.execute(_SCHEMA)
             self._turso.execute(_SCHEMA_TRACES)
             self._conn = None
