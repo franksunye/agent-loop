@@ -1,11 +1,13 @@
-# FS-AOL Monorepo (agent-loop)
+# FS-AOL Monorepo
 
 Field Service Agent Operating Layer — Python 跟进引擎 + Next.js 审批 Console，共享 Turso 追踪库与跨语言契约。
+
+GitHub: [franksunye/fs-aol](https://github.com/franksunye/fs-aol)
 
 ## Layout
 
 ```
-agent-loop/
+fs-aol/
 ├── apps/console/          # Next.js 审批面板（Vercel Root Directory）
 ├── data/                  # 本地 sqlite 追踪库（gitignore *.db；见 data/.gitkeep）
 ├── packages/aol/          # Python 引擎（pip install -e packages/aol）
