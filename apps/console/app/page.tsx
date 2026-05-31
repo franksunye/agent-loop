@@ -8,6 +8,11 @@ import { loadPilotHousekeepers, housekeeperName } from "@/lib/pilot-housekeepers
 import { LogoutButton } from "@/components/logout-button";
 import { HousekeeperFilter, HOUSEKEEPER_FILTER_COOKIE } from "@/components/housekeeper-filter";
 import { SuggestionInboxTable } from "@/components/suggestion-inbox-table";
+import { SuggestionSort } from "@/components/suggestion-sort";
+import {
+  parseSuggestionSortKey,
+  sortSuggestions,
+} from "@/lib/suggestion-sorting";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +37,7 @@ function Stat({
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ hk?: string }>;
+  searchParams: Promise<{ hk?: string; sort?: string }>;
 }) {
   const sp = await searchParams;
   const cookieStore = await cookies();
@@ -40,9 +45,11 @@ export default async function Page({
   // URL ?hk= 优先，其次 cookie（便于深链与刷新）
   const hkFilter = sp.hk?.trim() || hkFromCookie || undefined;
   const pilots = loadPilotHousekeepers();
-  const rows = await listSuggestions(
+  const rawRows = await listSuggestions(
     hkFilter ? { housekeeperId: hkFilter } : undefined
   );
+  const sortKey = parseSuggestionSortKey(sp.sort);
+  const rows = sortSuggestions(rawRows, sortKey, pilots);
   const stats = computeStats(rows);
   const filteredLabel = hkFilter
     ? housekeeperName(pilots, hkFilter)
@@ -60,6 +67,9 @@ export default async function Page({
         <div className="flex flex-wrap items-center gap-2">
           <Suspense fallback={null}>
             <HousekeeperFilter pilots={pilots} currentId={hkFilter} />
+          </Suspense>
+          <Suspense fallback={null}>
+            <SuggestionSort current={sortKey} />
           </Suspense>
           {isAuthEnabled() ? <LogoutButton /> : null}
           <Badge variant="outline" className="font-mono text-xs">
