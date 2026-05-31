@@ -820,8 +820,8 @@ def _heuristic_suggestion(wo: WorkOrder, enrich_ctx: Any = None) -> FollowUpSugg
             quote_status=quote_status,
             amount_plan=amount_plan or "查证无报价",
             channel_part=(
-                f"{ctx.channel_label or ctx.source_type_label}；"
-                f"{'、'.join(ctx.leak_sites) if ctx else ''}"
+                f"{(ctx.channel_label or ctx.source_type_label) if ctx else ''}；"
+                f"{'、'.join(ctx.leak_sites) if ctx and ctx.leak_sites else ''}"
             ).strip("；"),
         ),
         action_plan=domain.FollowUpActionPlan(
