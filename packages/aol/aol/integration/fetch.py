@@ -10,7 +10,7 @@ from ..domain import WorkOrder
 from .fsm_mock import fetch_mock
 from .fsm_mongo import fetch_from_mongo
 
-logger = logging.getLogger("agent-loop.integration")
+logger = logging.getLogger("aol.integration")
 
 
 def fetch_completed_work_orders(cfg: Config, processed_keys: set[str]) -> List[WorkOrder]:

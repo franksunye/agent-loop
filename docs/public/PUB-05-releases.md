@@ -372,7 +372,7 @@ python run_cron.py --reset-tracking
 > Industry Packs / Data Intelligence / Hosted Platform 保持商业护城河。
 
 - 防水业务 → `bindings/xlink-wpf.yaml` + SOP 包（Industry Pack，不开源）。
-- **AOL Core Runtime（开源）**：`agent-loop-runtime`，含 Event Bus / Agent Runtime /
+- **AOL Core Runtime（开源）**：`fs-aol-runtime`，含 Event Bus / Agent Runtime /
   Workflow / 基础 Memory + 四原语（ingestion / reasoning / spec / execution）。
 - Agent SDK（`onEvent → loadContext → decide → act`）与 Generative UI 组件库独立 npm 包。
 - 远期：Agent Marketplace（第三方 Agent 挂载运行）。

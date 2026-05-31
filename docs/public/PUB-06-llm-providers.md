@@ -1,7 +1,7 @@
 # 06 · LLM 提供方策略（免费为主，付费验证）
 
 > 对齐团队实践：[stockwise](https://github.com) 后端已用 **hunyuan-lite** 作为 free tier 低成本模型。
-> agent-loop 日常开发/试点 **默认混元**；DeepSeek 等仅用于**抽样质量验证**。
+> fs-aol 日常开发/试点 **默认混元**；DeepSeek 等仅用于**抽样质量验证**。
 
 ## 三档模式（`LLM_PROVIDER`）
 
@@ -55,7 +55,7 @@ python scripts/compare_llm_single_order.py --order-num GD2026059389 --round roun
 # 产出：tmp/llm-compare/<工单号>/<时间戳[-round]>/{enrich,prompt_user,hunyuan,deepseek}.*
 ```
 
-DeepSeek Key：agent-loop `.env` 的 `LLM_API_KEY` / `DEEPSEEK_API_KEY`，或 `DEEPSEEK_ENV_FILE`（默认会尝试 `stockwise/backend/.env`）。对比脚本与主引擎均会走 `suggestion_polish` 后处理（`--no-polish` 可关）。
+DeepSeek Key：fs-aol `.env` 的 `LLM_API_KEY` / `DEEPSEEK_API_KEY`，或 `DEEPSEEK_ENV_FILE`（默认会尝试 `stockwise/backend/.env`）。对比脚本与主引擎均会走 `suggestion_polish` 后处理（`--no-polish` 可关）。
 
 ## 参见
 

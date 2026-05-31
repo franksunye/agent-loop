@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from ..config import Config
     from ..domain import WorkOrder
 
-logger = logging.getLogger("agent-loop.tools")
+logger = logging.getLogger("aol.context")
 
 _QUOTE_B_MARKS = {
     "$or": [

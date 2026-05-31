@@ -222,7 +222,7 @@ def main() -> None:
     hunyuan_key = os.getenv("HUNYUAN_API_KEY", "") or os.getenv("LLM_API_KEY", "")
     deepseek_key = _resolve_deepseek_key()
     if not hunyuan_key:
-        raise SystemExit("需要 HUNYUAN_API_KEY（agent-loop/.env）")
+        raise SystemExit("需要 HUNYUAN_API_KEY（fs-aol/.env）")
 
     wo, _cfg = _load_work_order(args.order_num)
     from agent_tools import enrich_work_order_context

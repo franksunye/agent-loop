@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Offline deterministic smoke / regression guard for the agent-loop engine.
+# Offline deterministic smoke / regression guard for the fs-aol engine.
 #
 # Runs the engine against the built-in mock FSM source (no network, no mongo,
 # no LLM, fresh temp tracking db) and compares the normalized suggestion output

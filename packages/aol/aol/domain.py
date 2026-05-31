@@ -1,6 +1,6 @@
 """领域语义层 / XLink 防腐层（Anti-Corruption Layer）。
 
-本模块是 agent-loop 里**唯一**允许出现 XLink 系统语义（集合名、`status` 码、
+本模块是 fs-aol 引擎里**唯一**允许出现 XLink 系统语义（集合名、`status` 码、
 区划码、`state`、`exts` 路径等）的地方。其余所有代码只说领域语言。
 
 词汇真源对齐 `business_3_0/docs/12-domain-glossary.md`（领域 SSOT，FSL 对齐），

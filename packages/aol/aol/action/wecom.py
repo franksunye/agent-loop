@@ -8,7 +8,7 @@ from typing import Dict
 from ..config import Config
 from ..util import parse_csv
 
-logger = logging.getLogger("agent-loop.action")
+logger = logging.getLogger("aol.action")
 
 
 def parse_webhook_map(raw: str) -> Dict[str, str]:

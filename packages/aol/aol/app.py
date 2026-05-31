@@ -1,4 +1,4 @@
-"""Agent-Loop 主编排：DB 增量轮询 → 推理 → 追踪库 → 企微推送。
+"""FS-AOL 主编排：DB 增量轮询 → 推理 → 追踪库 → 企微推送。
 
 链路：GitHub Actions Cron → 增量捞取候选工单 → 推理生成跟进建议
      → 写入追踪库（幂等水位线）→ 企业微信群机器人推送。
@@ -38,7 +38,7 @@ logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
-logger = logging.getLogger("agent-loop")
+logger = logging.getLogger("aol")
 
 
 def reset_tracking(cfg: Config) -> None:
@@ -66,7 +66,7 @@ def run(cfg: Optional[Config] = None) -> int:
     statuses = resolve_event_statuses(cfg)
     pilot_label = (cfg.pilot_housekeepers or cfg.pilot_housekeeper_ids or "全部").strip()
     logger.info(
-        "启动 agent-loop | dry_run=%s fsm=%s tracking=%s llm=%s/%s | "
+        "启动 fs-aol | dry_run=%s fsm=%s tracking=%s llm=%s/%s | "
         "events=%s max_age_days=%d stale_days=%d | pilot=%s | agent=%s",
         cfg.dry_run, cfg.fsm_source, cfg.tracking_source, prov, model,
         ",".join(statuses), cfg.fsm_max_age_days, cfg.fsm_stale_days, pilot_label,
@@ -132,7 +132,7 @@ def run(cfg: Optional[Config] = None) -> int:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Agent-Loop 跟进行动引擎")
+    parser = argparse.ArgumentParser(description="FS-AOL 跟进行动引擎")
     parser.add_argument(
         "--reset-tracking",
         action="store_true",

@@ -4,14 +4,14 @@
 # 前置：turso auth login 已完成（见 turso auth whoami）。
 # 用法：
 #   bash scripts/turso_setup.sh [db_name] [sqlite_file]
-#   默认：db_name=agent-loop  sqlite_file=data/agent_loop_tracking.db
+#   默认：db_name=fs-aol  sqlite_file=data/agent_loop_tracking.db
 #
 # 输出的 TURSO_URL / TURSO_TOKEN 同时用于：
 #   - 引擎（.env）：TURSO_URL / TURSO_TOKEN + TRACKING_SOURCE=cloud
 #   - Console（apps/console/.env.local）：LIBSQL_URL / LIBSQL_AUTH_TOKEN
 set -euo pipefail
 
-DB_NAME="${1:-agent-loop}"
+DB_NAME="${1:-fs-aol}"
 SQLITE_FILE="${2:-data/agent_loop_tracking.db}"
 export PATH="$HOME/.turso:$PATH"
 

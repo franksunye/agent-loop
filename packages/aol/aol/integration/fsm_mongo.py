@@ -11,7 +11,7 @@ from ..config import Config
 from ..domain import WorkOrder
 from ..util import parse_csv
 
-logger = logging.getLogger("agent-loop.integration")
+logger = logging.getLogger("aol.integration")
 
 
 def is_v02_ingestion(cfg: Config) -> bool:

@@ -20,9 +20,9 @@ XLink 后端（cloud / Mongo）说的是**系统语言**，充满历史包袱与
 POC 当前把 `403`、`110100`、`state` 这些**系统码直接写进了引擎逻辑**。这能跑通，
 但埋了一个战略隐患：**Agent 在用系统的"黑话"思考和产出建议**。
 
-## 2. 为什么这对 agent-loop 是命门
+## 2. 为什么这对 fs-aol 是命门
 
-agent-loop 的产出是 `Suggestion` / `Action Spec`——要给人看、要驱动 UI、最终要开源复用。
+fs-aol 的产出是 `Suggestion` / `Action Spec`——要给人看、要驱动 UI、最终要开源复用。
 
 - 如果建议里写的是"status=403 的单子"，它**只对懂 XLink 的人有意义**，无法泛化。
 - 我们的开源终局（[01-vision](PUB-01-vision.md)）是把这套运行时复用到 CRM / 招聘 / 医疗随访。
@@ -86,7 +86,7 @@ flowchart LR
 ### Stage 2（AOL Core 成型）— 共享单一领域真源
 当 `business_3_0` 的 ERM/BFF 暴露领域读模型（领域 API 或共享包）时：
 
-- agent-loop **改为消费领域对象**（`WorkOrder` + `WorkOrderActivity`），
+- fs-aol **改为消费领域对象**（`WorkOrder` + `WorkOrderActivity`），
   而非直连 Mongo 解析原始行——**消除影子真源**，码表只在 ERM 维护一份。
 - Action Spec 引用**领域 id**（`workOrderId` / `accountId` / `serviceResourceId`），
   天然能被 Stage 2 的 Generative UI 审批卡片消费。
@@ -100,8 +100,8 @@ flowchart LR
 
 ## 6. 治理纪律
 
-1. **不 fork 词汇表**：`12-domain-glossary.md` 是领域 SSOT；agent-loop 引用它，不另立一份。
-2. **缺概念就上游补**：若 agent-loop 需要 glossary 里没有的领域概念（如
+1. **不 fork 词汇表**：`12-domain-glossary.md` 是领域 SSOT；fs-aol 引用它，不另立一份。
+2. **缺概念就上游补**：若 fs-aol 需要 glossary 里没有的领域概念（如
    `FollowUpSuggestion`、`ActionSpec`），按 glossary 的变更规则提议补充，保持单一真源。
 3. **系统码集中**：任何 `status` / `exts` / 区划码新增映射，进防腐层，并尽量复用
    `business_3_0` 的 `sa-list-display-map` / `cloud-code-labels` 口径。
@@ -109,7 +109,7 @@ flowchart LR
 
 ## 7. 一句话共识
 
-> **agent-loop 不是在"读 XLink 的工单表"，而是在"对工单领域里发生的事件做出反应"。**
+> **fs-aol 不是在"读 XLink 的工单表"，而是在"对工单领域里发生的事件做出反应"。**
 > 系统只是当下的数据来源；领域语义才是我们沉淀和开源的资产。
 
 ## 参见

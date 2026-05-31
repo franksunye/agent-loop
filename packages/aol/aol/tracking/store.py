@@ -12,7 +12,7 @@ from ..domain import FollowUpSuggestion, WorkOrder, bj_now
 from .schema import SCHEMA, SCHEMA_TRACES, TABLE_LOGS, TABLE_TRACES
 from .trace import ReasoningTrace
 
-logger = logging.getLogger("agent-loop.tracking")
+logger = logging.getLogger("aol.tracking")
 
 
 class TrackingStore:

@@ -1,4 +1,4 @@
-# Agent-Loop 版本变更记录
+# FS-AOL 版本变更记录
 
 > 与 [05-releases.md](./PUB-05-releases.md) 配套：**本表 = 每行一条可发布版本或重要治理决策的摘要**，便于讨论「放进哪个小版本」。  
 > 不必罗列每次 commit；细节见 git history、各版 scope 文档与 ADR。

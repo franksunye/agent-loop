@@ -13,7 +13,7 @@ from ..tracking.trace import ReasoningTrace
 from .prompts import SYSTEM_PROMPT
 from .heuristic import heuristic_suggestion
 
-logger = logging.getLogger("agent-loop.runtime")
+logger = logging.getLogger("aol.runtime")
 
 
 def parse_llm_json(content: str) -> FollowUpSuggestion:
